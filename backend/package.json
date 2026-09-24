@@ -3,14 +3,16 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Backend de SmartFlow AI — Node.js + Express (datos en memoria por ahora)",
+  "description": "Backend de SmartFlow AI — Node.js + Express + PostgreSQL",
   "main": "src/server.js",
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "db:check": "node test-db.js"
   },
   "dependencies": {
     "@google-cloud/discoveryengine": "^3.1.0",
+    "@google-cloud/storage": "^8.2.0",
     "@google-cloud/vertexai": "^1.12.0",
     "@google/genai": "^1.52.0",
     "bcrypt": "^6.0.0",
@@ -20,6 +22,7 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.10.0",
+    "multer": "^2.4.0",
     "pg": "^8.23.0"
   }
 }

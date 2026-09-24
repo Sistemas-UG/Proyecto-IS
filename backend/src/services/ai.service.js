@@ -242,14 +242,19 @@ function splitIntoSteps(descripcion) {
   return parts;
 }
 
-export async function generateReportFromFlow(flowData) {
+export async function generateReportFromFlow(flowData, jerarquia = []) {
   const { nombre, nodes, edges, insight, format = "pdf" } = flowData;
+
+  const contextoRoles =
+    Array.isArray(jerarquia) && jerarquia.length > 0
+      ? `Contexto obligatorio: los roles reales de esta organización, de menor a mayor autoridad, son: ${jerarquia.join(" → ")}. Cuando menciones responsables de aprobar, revisar o ejecutar una recomendación, usa ÚNICAMENTE estos roles. No inventes cargos, gerencias o comités que no estén en esta lista.\n\n`
+      : "";
 
   if (isVertexConfigured()) {
     try {
       const ai = getClient();
       const prompt = `
-Genera un informe ejecutivo de eficiencia en formato de texto claro y profesional para el siguiente proceso:
+${contextoRoles}Genera un informe ejecutivo de eficiencia en formato de texto claro y profesional para el siguiente proceso:
 Nombre del Flujo: ${nombre}
 Nodos: ${JSON.stringify(nodes)}
 Conexiones: ${JSON.stringify(edges)}
@@ -272,7 +277,6 @@ Incluye:
         titulo: `Reporte de Eficiencia - ${nombre}`,
         formato: format,
         contenido: response.text,
-        fecha: new Date().toISOString(),
       };
     } catch (err) {
       console.error("[ai.service] Falló generación de reporte con Gemini:", err.message);
@@ -283,6 +287,5 @@ Incluye:
     titulo: `Reporte de Eficiencia (Simulado) - ${nombre || "Flujo de Trabajo"}`,
     formato: format,
     contenido: `## Resumen Ejecutivo\nEl proceso "${nombre}" cuenta con ${nodes.length} pasos analizados.\n\n## Recomendación\n${insight?.sugerencia || "Optimizar tareas manuales."}`,
-    fecha: new Date().toISOString(),
   };
 }

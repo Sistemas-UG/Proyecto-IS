@@ -43,7 +43,13 @@ export const generateReport = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Se requieren los nodos del flujo para generar el reporte.");
   }
 
-  const report = await generateReportFromFlow(flowData);
+  const orgRes = await pool.query(
+    `SELECT jerarquia FROM organizaciones WHERE id = $1`,
+    [req.user.organizationId]
+  );
+  const jerarquia = orgRes.rows[0]?.jerarquia || [];
+
+  const report = await generateReportFromFlow(flowData, jerarquia);
 
   // El flujoId solo se guarda si es un flujo real de esta organización
   let flujoId = null;
@@ -65,7 +71,7 @@ export const generateReport = asyncHandler(async (req, res) => {
        (flujo_id, organizacion_id, generado_por, titulo, reporte_texto,
         optimizacion, sugerencia, ahorro_estimado_horas)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     RETURNING id`,
+     RETURNING id, generated_en AS "generatedEn"`,
     [
       flujoId,
       req.user.organizationId,
@@ -78,5 +84,9 @@ export const generateReport = asyncHandler(async (req, res) => {
     ]
   );
 
-  res.json({ ...report, insightId: insertRes.rows[0].id });
+  res.json({
+    ...report,
+    insightId: insertRes.rows[0].id,
+    generatedEn: insertRes.rows[0].generatedEn,
+  });
 });
