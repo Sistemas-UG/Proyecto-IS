@@ -1,13 +1,16 @@
-import { organizations, generateOrgId } from "../data/store.js";
+import pool from "../config/db.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 // GET /api/organizations/me
 // Devuelve la organización del usuario logueado (admin o usuario normal).
 export const getMyOrganization = asyncHandler(async (req, res) => {
-  const org = organizations.find((o) => o.id === req.user.organizationId);
-  if (!org) throw new ApiError(404, "Organización no encontrada.");
-  res.json({ organization: org });
+  const result = await pool.query(
+    `SELECT id, nombre, tipo_industria, jerarquia FROM organizaciones WHERE id = $1`,
+    [req.user.organizationId]
+  );
+  if (result.rows.length === 0) throw new ApiError(404, "Organización no encontrada.");
+  res.json({ organization: result.rows[0] });
 });
 
 // POST /api/organizations  (solo admin, vía requireRole en la ruta)
@@ -21,15 +24,13 @@ export const createOrganization = asyncHandler(async (req, res) => {
     throw new ApiError(400, "'jerarquia' debe ser un arreglo con al menos un nivel (ej: ['Empleado','Gerencia']).");
   }
 
-  const organization = {
-    id: generateOrgId(),
-    nombre,
-    tipo_industria,
-    jerarquia,
-  };
-
-  organizations.push(organization);
-  res.status(201).json({ organization });
+  const result = await pool.query(
+    `INSERT INTO organizaciones (nombre, tipo_industria, jerarquia)
+     VALUES ($1, $2, $3)
+     RETURNING id, nombre, tipo_industria, jerarquia`,
+    [nombre, tipo_industria, jerarquia.map((s) => String(s).trim()).filter(Boolean)]
+  );
+  res.status(201).json({ organization: result.rows[0] });
 });
 
 // PUT /api/organizations/me/jerarquia  (solo admin)
@@ -40,11 +41,13 @@ export const updateMyHierarchy = asyncHandler(async (req, res) => {
     throw new ApiError(400, "'jerarquia' debe ser un arreglo con al menos un nivel.");
   }
 
-  const org = organizations.find((o) => o.id === req.user.organizationId);
-  if (!org) throw new ApiError(404, "Organización no encontrada.");
-
-  org.jerarquia = jerarquia;
-  res.json({ organization: org });
+    const result = await pool.query(
+    `UPDATE organizaciones SET jerarquia = $1 WHERE id = $2
+     RETURNING id, nombre, tipo_industria, jerarquia`,
+    [jerarquia.map((s) => String(s).trim()).filter(Boolean), req.user.organizationId]
+  );
+  if (result.rows.length === 0) throw new ApiError(404, "Organización no encontrada.");
+  res.json({ organization: result.rows[0] });
 });
 
 // PUT /api/organizations/me  (solo admin)
@@ -56,23 +59,26 @@ export const updateMyHierarchy = asyncHandler(async (req, res) => {
 export const updateMyOrganization = asyncHandler(async (req, res) => {
   const { nombre, tipo_industria, jerarquia } = req.body;
 
-  const org = organizations.find((o) => o.id === req.user.organizationId);
-  if (!org) throw new ApiError(404, "Organización no encontrada.");
-
+    let nuevaJerarquia = null;
   if (jerarquia !== undefined) {
     if (!Array.isArray(jerarquia) || jerarquia.length === 0) {
       throw new ApiError(400, "'jerarquia' debe ser un arreglo con al menos un nivel.");
     }
-    org.jerarquia = jerarquia.map((s) => String(s).trim()).filter(Boolean);
+    nuevaJerarquia = jerarquia.map((s) => String(s).trim()).filter(Boolean);
   }
+  const nuevoNombre = typeof nombre === "string" && nombre.trim() ? nombre.trim() : null;
+  const nuevaIndustria =
+    typeof tipo_industria === "string" && tipo_industria.trim() ? tipo_industria.trim() : null;
 
-  if (typeof nombre === "string" && nombre.trim()) {
-    org.nombre = nombre.trim();
-  }
-
-  if (typeof tipo_industria === "string" && tipo_industria.trim()) {
-    org.tipo_industria = tipo_industria.trim();
-  }
-
-  res.json({ organization: org });
+  const result = await pool.query(
+    `UPDATE organizaciones
+     SET nombre         = COALESCE($1::varchar, nombre),
+         tipo_industria = COALESCE($2::varchar, tipo_industria),
+         jerarquia      = COALESCE($3::text[], jerarquia)
+     WHERE id = $4
+     RETURNING id, nombre, tipo_industria, jerarquia`,
+    [nuevoNombre, nuevaIndustria, nuevaJerarquia, req.user.organizationId]
+  );
+  if (result.rows.length === 0) throw new ApiError(404, "Organización no encontrada.");
+  res.json({ organization: result.rows[0] });
 });

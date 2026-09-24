@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { generateFlow, generateReport } from "../controllers/ai.controller.js";
 import { requireAuth, requireRole } from "../middleware/auth.middleware.js";
-import { ROLES } from "../data/store.js";
+import { ROLES } from "../constants/roles.js";
 
 const router = Router();
 

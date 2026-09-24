@@ -1,5 +1,5 @@
 import { generateFlowFromDescription, generateReportFromFlow } from "../services/ai.service.js";
-import { organizations, aiInsights, generateInsightId } from "../data/store.js";
+import pool from "../config/db.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
@@ -19,7 +19,11 @@ export const generateFlow = asyncHandler(async (req, res) => {
   let jerarquia = [];
   let tipoIndustria = "";
   if (!general) {
-    const org = organizations.find((o) => o.id === req.user.organizationId);
+    const orgRes = await pool.query(
+      `SELECT tipo_industria, jerarquia FROM organizaciones WHERE id = $1`,
+      [req.user.organizationId]
+    );
+    const org = orgRes.rows[0];
     jerarquia = org?.jerarquia || [];
     tipoIndustria = org?.tipo_industria || "";
   }
@@ -41,18 +45,38 @@ export const generateReport = asyncHandler(async (req, res) => {
 
   const report = await generateReportFromFlow(flowData);
 
-  const savedInsight = {
-    id: generateInsightId(),
-    flujoId: flowData.flujoId || null,
-    organizationId: req.user.organizationId,
-    titulo: report.titulo,
-    reporteTexto: report.contenido, // CLOB: texto largo completo, no se recorta
-    optimizacion: flowData.insight?.optimizacion || null,
-    ahorroEstimadoHoras: flowData.insight?.ahorro_estimado_horas ?? null,
-    generatedEn: report.fecha,
-    generadoPor: req.user.id,
-  };
-  aiInsights.push(savedInsight);
+  // El flujoId solo se guarda si es un flujo real de esta organización
+  let flujoId = null;
+  const candidato = Number(flowData.flujoId);
+  if (Number.isInteger(candidato) && candidato > 0) {
+    const flujoRes = await pool.query(
+      `SELECT id FROM flujos WHERE id = $1 AND organizacion_id = $2`,
+      [candidato, req.user.organizationId]
+    );
+    if (flujoRes.rows.length > 0) flujoId = candidato;
+  }
 
-  res.json({ ...report, insightId: savedInsight.id });
+  // La columna es INTEGER: si la IA devuelve decimales hay que redondear
+  const ahorroRaw = flowData.insight?.ahorro_estimado_horas;
+  const ahorro = ahorroRaw == null ? null : Math.round(Number(ahorroRaw));
+
+  const insertRes = await pool.query(
+    `INSERT INTO insights_ia
+       (flujo_id, organizacion_id, generado_por, titulo, reporte_texto,
+        optimizacion, sugerencia, ahorro_estimado_horas)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING id`,
+    [
+      flujoId,
+      req.user.organizationId,
+      req.user.id,
+      String(report.titulo).slice(0, 255),
+      report.contenido,
+      flowData.insight?.optimizacion || null,
+      flowData.insight?.sugerencia || null,
+      Number.isFinite(ahorro) ? ahorro : null,
+    ]
+  );
+
+  res.json({ ...report, insightId: insertRes.rows[0].id });
 });
