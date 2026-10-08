@@ -1,3 +1,4 @@
+import jsPDF from "jspdf";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactFlow, {
   Background, Controls, MiniMap, MarkerType, addEdge, useNodesState, useEdgesState,
@@ -191,6 +192,24 @@ export default function CrearFlujo() {
     }
   };
 
+  // Genera el PDF del reporte y dispara la descarga en la PC del usuario.
+  // Extraída como función independiente para poder llamarla tanto
+  // automáticamente (justo al generar el reporte) como manualmente
+  // (botón "Descargar PDF del Reporte").
+  const descargarPDF = (texto) => {
+    if (!texto) return;
+    const doc = new jsPDF({ unit: "pt", format: "letter" });
+    const margin = 40;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text(`Reporte de Eficiencia — ${flowName.trim() || "Flujo sin nombre"}`, margin, 60);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    const lines = doc.splitTextToSize(texto, 515);
+    doc.text(lines, margin, 90);
+    doc.save(`reporte-eficiencia-${flowName.trim() || "flujo"}.pdf`);
+  };
+
   const handleGenerarReporte = async () => {
     if (!nodes.length) return;
     setReportLoading(true);
@@ -205,12 +224,17 @@ export default function CrearFlujo() {
         format: "pdf",
       });
       setReportText(report.contenido);
+      // Se genera y se guarda en el backend (api.generateReport), y aquí
+      // además se dispara la descarga automática del PDF en la PC.
+      descargarPDF(report.contenido);
     } catch (err) {
       setError(err.message || "No se pudo generar el reporte.");
     } finally {
       setReportLoading(false);
     }
   };
+
+  const handleDescargarPDF = () => descargarPDF(reportText);
 
   const hasNodes = nodes.length > 0;
 
@@ -401,8 +425,12 @@ export default function CrearFlujo() {
                   )}
                   {reportLoading ? "Generando reporte…" : "Reporte de Eficiencia (con IA)"}
                 </button>
-                <button className="flex items-center gap-2 text-xs font-medium text-ink dark:text-white border border-border dark:border-navyCard rounded-lg px-3 py-2.5 font-body bg-bg dark:bg-navyDeep hover:border-muted transition-colors">
-                  <FileDown size={14} className="text-blue" /> Plantilla de Carta (Word)
+                <button
+                  onClick={handleDescargarPDF}
+                  disabled={!reportText}
+                  className="flex items-center gap-2 text-xs font-medium text-ink dark:text-white border border-border dark:border-navyCard rounded-lg px-3 py-2.5 font-body bg-bg dark:bg-navyDeep hover:border-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <FileDown size={14} className="text-blue" /> Descargar PDF del Reporte
                 </button>
               </div>
               {reportText && (
@@ -415,9 +443,6 @@ export default function CrearFlujo() {
                   </p>
                 </div>
               )}
-              <p className="text-[11px] text-faint font-body mt-2">
-                Generación real de PDF descargable: próxima etapa del backend.
-              </p>
             </div>
           )}
         </div>
