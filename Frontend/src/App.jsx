@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/AuthContext";
 import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import MisFlujos from "./pages/MisFlujos";
 import VerFlujo from "./pages/VerFlujo";
@@ -37,6 +38,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Login />} />
+      <Route path="/restablecer-contrasena" element={<ResetPassword />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/flujos" element={<ProtectedRoute><MisFlujos /></ProtectedRoute>} />
       <Route path="/flujos/:id" element={<ProtectedRoute><VerFlujo /></ProtectedRoute>} />

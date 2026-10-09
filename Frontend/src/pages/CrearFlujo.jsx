@@ -76,6 +76,7 @@ export default function CrearFlujo() {
   const [saved, setSaved] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportText, setReportText] = useState("");
+  const [reportPdfUrl, setReportPdfUrl] = useState("");
 
   // --- Lienzo compartido ---
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -192,11 +193,8 @@ export default function CrearFlujo() {
     }
   };
 
-  // Genera el PDF del reporte y dispara la descarga en la PC del usuario.
-  // Extraída como función independiente para poder llamarla tanto
-  // automáticamente (justo al generar el reporte) como manualmente
-  // (botón "Descargar PDF del Reporte").
-  const descargarPDF = (texto) => {
+  // Genera el PDF como Blob para mostrarlo en pantalla antes de descargarlo.
+  const prepararPDF = (texto) => {
     if (!texto) return;
     const doc = new jsPDF({ unit: "pt", format: "letter" });
     const margin = 40;
@@ -207,7 +205,8 @@ export default function CrearFlujo() {
     doc.setFontSize(10);
     const lines = doc.splitTextToSize(texto, 515);
     doc.text(lines, margin, 90);
-    doc.save(`reporte-eficiencia-${flowName.trim() || "flujo"}.pdf`);
+    const blob = doc.output("blob");
+    setReportPdfUrl((oldUrl) => { if (oldUrl) URL.revokeObjectURL(oldUrl); return URL.createObjectURL(blob); });
   };
 
   const handleGenerarReporte = async () => {
@@ -224,9 +223,8 @@ export default function CrearFlujo() {
         format: "pdf",
       });
       setReportText(report.contenido);
-      // Se genera y se guarda en el backend (api.generateReport), y aquí
-      // además se dispara la descarga automática del PDF en la PC.
-      descargarPDF(report.contenido);
+      // El reporte queda listo para revisar; la descarga es una acción aparte.
+      prepararPDF(report.contenido);
     } catch (err) {
       setError(err.message || "No se pudo generar el reporte.");
     } finally {
@@ -234,7 +232,13 @@ export default function CrearFlujo() {
     }
   };
 
-  const handleDescargarPDF = () => descargarPDF(reportText);
+  const handleDescargarPDF = () => {
+    if (!reportPdfUrl) return;
+    const link = document.createElement("a"); link.href = reportPdfUrl;
+    link.download = `reporte-eficiencia-${(flowName.trim() || "flujo").replace(/\s+/g, "-")}.pdf`;
+    document.body.appendChild(link); link.click(); link.remove();
+  };
+  useEffect(() => () => { if (reportPdfUrl) URL.revokeObjectURL(reportPdfUrl); }, [reportPdfUrl]);
 
   const hasNodes = nodes.length > 0;
 
@@ -433,6 +437,12 @@ export default function CrearFlujo() {
                   <FileDown size={14} className="text-blue" /> Descargar PDF del Reporte
                 </button>
               </div>
+              {reportText && reportPdfUrl && (
+                <div className="mt-3 overflow-hidden rounded-xl border border-border dark:border-navyCard">
+                  <div className="flex items-center justify-between gap-3 p-3"><span className="text-xs font-semibold text-ink dark:text-white">Vista previa del reporte PDF</span><button onClick={handleDescargarPDF} className="inline-flex items-center gap-2 rounded-lg bg-blue px-3 py-2 text-xs font-semibold text-white"><FileDown size={14}/> Descargar PDF</button></div>
+                  <iframe title="Vista previa del reporte PDF" src={reportPdfUrl} className="h-[480px] w-full bg-slate-100" />
+                </div>
+              )}
               {reportText && (
                 <div className="mt-3 rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-3 max-h-48 overflow-auto">
                   <p className="text-[11px] leading-relaxed text-muted dark:text-faint font-body whitespace-pre-wrap">

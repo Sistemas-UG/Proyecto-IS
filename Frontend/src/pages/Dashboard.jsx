@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { PlusCircle, Sparkles, TrendingUp, Clock, Gauge, ChevronRight, Loader2 } from "lucide-react";
+import { PlusCircle, Sparkles, TrendingUp, Clock, Gauge, ChevronRight, Loader2, Trash2 } from "lucide-react";
 import AppShell, { TopBar } from "../components/AppShell";
 import { Card, Pill } from "../components/ui";
 import { useAuth } from "../lib/AuthContext";
@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [flows, setFlows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,6 +38,19 @@ export default function Dashboard() {
       cancelled = true;
     };
   }, []);
+
+  const handleDelete = async (flow) => {
+    if (!window.confirm(`¿Seguro que deseas eliminar el flujo "${flow.nombre}"? Esta acción no se puede deshacer.`)) return;
+    setDeletingId(flow.id);
+    setError("");
+    try {
+      await api.deleteFlow(flow.id);
+      setFlows((current) => current.filter((item) => item.id !== flow.id));
+      setKpis((current) => current ? { ...current, flujosActivos: current.flujosActivos ? { ...current.flujosActivos, value: Math.max(0, Number(current.flujosActivos.value) - 1) } : current.flujosActivos } : current);
+    } catch (err) {
+      setError(err.message || "No se pudo eliminar el flujo.");
+    } finally { setDeletingId(null); }
+  };
 
   return (
     <AppShell>
@@ -95,7 +109,12 @@ export default function Dashboard() {
                     <p className="text-sm font-medium text-ink dark:text-white font-body">{f.nombre}</p>
                     <p className="text-xs text-muted dark:text-faint font-body">{f.fecha} · {f.pasos} pasos</p>
                   </div>
-                  <Pill tone={f.estado === "Activo" ? "green" : "amber"}>{f.estado}</Pill>
+                  <div className="flex items-center gap-3">
+                    <Pill tone={f.estado === "Activo" ? "green" : "amber"}>{f.estado}</Pill>
+                    <button type="button" onClick={() => handleDelete(f)} disabled={deletingId === f.id} title="Eliminar flujo" aria-label={`Eliminar ${f.nombre}`} className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50" >
+                      {deletingId === f.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                    </button>
+                  </div>
                 </div>
               ))}
               {!loading && flows.length === 0 && (

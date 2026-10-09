@@ -47,6 +47,8 @@ export const api = {
   login: (email, password) => request("/auth/login", { method: "POST", body: { email, password }, auth: false }),
   register: (payload) => request("/auth/register", { method: "POST", body: payload, auth: false }),
   me: () => request("/auth/me"),
+  requestPasswordReset: (email) => request("/auth/forgot-password", { method: "POST", body: { email }, auth: false }),
+  resetPassword: (token, password) => request("/auth/reset-password", { method: "POST", body: { token, password }, auth: false }),
 
   // Flujos
   getFlows: () => request("/flows"),

@@ -9,6 +9,7 @@ export default function Login() {
   const { login, register, isAuthenticated } = useAuth();
 
   const [isRegistering, setIsRegistering] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
   const [nombreCompleto, setNombreCompleto] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -26,14 +27,15 @@ export default function Login() {
   }, [isAuthenticated, navigate]);
 
   const handleForgotPassword = (e) => {
-    e.preventDefault();
-    if (!email) {
-      setError("Ingresa tu correo para enviarte las instrucciones.");
-      return;
-    }
-    setError("");
-    setResetNotice(true);
-    setTimeout(() => setResetNotice(false), 5000);
+    e.preventDefault(); setError(""); setResetNotice(false); setForgotMode(true);
+  };
+
+  const handleRequestReset = async (e) => {
+    e.preventDefault(); setError(""); setResetNotice(false);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError("Ingresa un correo electrónico válido."); return; }
+    try { setSubmitting(true); await (await import("../lib/api")).api.requestPasswordReset(email.trim()); setResetNotice(true); }
+    catch (err) { setError(err.message || "No se pudo procesar la solicitud. Inténtalo de nuevo."); }
+    finally { setSubmitting(false); }
   };
 
   const handleSubmit = async (e) => {
@@ -72,9 +74,7 @@ export default function Login() {
   };
 
   const toggleMode = () => {
-    setError("");
-    setResetNotice(false);
-    setIsRegistering(!isRegistering);
+    setError(""); setResetNotice(false); setForgotMode(false); setIsRegistering(!isRegistering);
   };
 
   return (
@@ -104,15 +104,23 @@ export default function Login() {
       <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-8 bg-white dark:bg-navyDeep transition-colors">
         <div className="w-full max-w-sm">
           <h2 className="text-xl font-bold text-center text-ink dark:text-white font-display mb-1">
-            {isRegistering ? "Crear una cuenta nueva" : "Bienvenido de nuevo"}
+            {forgotMode ? "Recuperar contraseña" : isRegistering ? "Crear una cuenta nueva" : "Bienvenido de nuevo"}
           </h2>
           <p className="text-xs font-medium text-center text-muted dark:text-faint font-body mb-6">
-            {isRegistering
+            {forgotMode ? "Te enviaremos un enlace para crear una contraseña nueva." : isRegistering
               ? "Ingresa tus datos para registrarte en el sistema."
               : "Accede con tu nombre de usuario o correo electrónico."}
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-3.5">
+          {forgotMode ? (
+            <form onSubmit={handleRequestReset} className="space-y-3.5">
+              <div className="relative"><Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted dark:text-faint"/><input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Correo electrónico" className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-border dark:border-navyCard bg-bg dark:bg-navy text-ink dark:text-white outline-none focus:border-blue"/></div>
+              {resetNotice && <div role="status" className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs"><CheckCircle2 size={16}/><span>Si existe una cuenta asociada, recibirás instrucciones por correo.</span></div>}
+              {error && <div role="alert" className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-xs"><AlertCircle size={16}/><span>{error}</span></div>}
+              <button type="submit" disabled={submitting} className="w-full py-3 px-4 rounded-xl bg-blue hover:opacity-90 text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50">{submitting ? <Loader2 size={16} className="animate-spin"/> : <Mail size={16}/>} Enviar instrucciones</button>
+              <button type="button" onClick={() => { setForgotMode(false); setError(""); setResetNotice(false); }} className="w-full text-xs text-muted dark:text-faint hover:text-blue underline">Volver al inicio de sesión</button>
+            </form>
+          ) : <form onSubmit={handleSubmit} className="space-y-3.5">
             {isRegistering && (
               <div className="relative">
                 <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted dark:text-faint" />
@@ -210,9 +218,9 @@ export default function Login() {
                 </>
               )}
             </button>
-          </form>
+          </form>}
 
-          <div className="mt-6 text-center">
+          {!forgotMode && <div className="mt-6 text-center">
             <button
               type="button"
               onClick={toggleMode}
@@ -220,7 +228,7 @@ export default function Login() {
             >
               {isRegistering ? "¿Ya tienes cuenta? Inicia sesión" : "¿No tienes cuenta? Crea una aquí"}
             </button>
-          </div>
+          </div>}
         </div>
       </div>
     </div>
