@@ -1,9 +1,11 @@
 node_modules
 npm-debug.log
 .env
+.env.*
 .git
 .gitignore
 credentials/
 *.md
 db-test.js
-test-db.js
+test-vertex.js
+testStorage.js
