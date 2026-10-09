@@ -54,7 +54,6 @@ export default function CrearFlujo() {
   // --- Modo IA ---
   const [descripcion, setDescripcion] = useState(EXAMPLE);
   const [flujoGeneral, setFlujoGeneral] = useState(false);
-  const [complejidad, setComplejidad] = useState("detallado"); // "basico" | "detallado" | "ultra"
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [aiResult, setAiResult] = useState(null); // guarda insight/bottlenecks/tipo de la última generación
@@ -155,7 +154,7 @@ export default function CrearFlujo() {
     setReportText("");
     setError("");
     try {
-      const result = await api.generateFlow(descripcion, flujoGeneral, complejidad);
+      const result = await api.generateFlow(descripcion, flujoGeneral);
       setAiResult(result);
       setFlowName(result.nombre || "");
       setNodes(layoutNodes(result.nodes, result.edges));
@@ -193,33 +192,21 @@ export default function CrearFlujo() {
     }
   };
 
-  // Genera el PDF del reporte con soporte de múltiples páginas y dispara la descarga.
+  // Genera el PDF del reporte y dispara la descarga en la PC del usuario.
+  // Extraída como función independiente para poder llamarla tanto
+  // automáticamente (justo al generar el reporte) como manualmente
+  // (botón "Descargar PDF del Reporte").
   const descargarPDF = (texto) => {
     if (!texto) return;
     const doc = new jsPDF({ unit: "pt", format: "letter" });
     const margin = 40;
-    const pageHeight = doc.internal.pageSize.getHeight();
-
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
-    doc.text(`Reporte de Eficiencia — ${flowName.trim() || "Flujo sin nombre"}`, margin, 50);
-
+    doc.text(`Reporte de Eficiencia — ${flowName.trim() || "Flujo sin nombre"}`, margin, 60);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-
     const lines = doc.splitTextToSize(texto, 515);
-    let cursorY = 80;
-    const lineHeight = 14;
-
-    lines.forEach((line) => {
-      if (cursorY + lineHeight > pageHeight - margin) {
-        doc.addPage();
-        cursorY = margin;
-      }
-      doc.text(line, margin, cursorY);
-      cursorY += lineHeight;
-    });
-
+    doc.text(lines, margin, 90);
     doc.save(`reporte-eficiencia-${flowName.trim() || "flujo"}.pdf`);
   };
 
@@ -237,6 +224,8 @@ export default function CrearFlujo() {
         format: "pdf",
       });
       setReportText(report.contenido);
+      // Se genera y se guarda en el backend (api.generateReport), y aquí
+      // además se dispara la descarga automática del PDF en la PC.
       descargarPDF(report.contenido);
     } catch (err) {
       setError(err.message || "No se pudo generar el reporte.");
@@ -283,24 +272,10 @@ export default function CrearFlujo() {
               <textarea
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
-                rows={6}
+                rows={8}
                 className="w-full text-sm rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-3 text-ink dark:text-white font-body outline-none focus:border-blue resize-none mb-4 transition-colors placeholder:text-muted/60 dark:placeholder:text-faint/50"
                 placeholder="Describe tu proceso de negocio en lenguaje natural…"
               />
-
-              {/* Selector de Nivel de Profundidad */}
-              <label className="text-xs font-semibold text-ink dark:text-white font-body mb-1 block">
-                Profundidad del diagrama
-              </label>
-              <select
-                value={complejidad}
-                onChange={(e) => setComplejidad(e.target.value)}
-                className="w-full text-xs rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-2.5 text-ink dark:text-white font-body outline-none focus:border-blue mb-4 transition-colors cursor-pointer"
-              >
-                <option value="basico">Básico (Estructura simple)</option>
-                <option value="detallado">Detallado (8 - 12 pasos con excepciones)</option>
-                <option value="ultra">Enterprise Ultra (12 - 18 pasos, auditoría y notificaciones)</option>
-              </select>
 
               <label className="flex items-start gap-2 text-xs text-muted dark:text-faint font-body mb-4 cursor-pointer">
                 <input
@@ -477,7 +452,7 @@ export default function CrearFlujo() {
           {!hasNodes && !loading && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <p className="text-sm text-faint font-body text-center px-6">
-                El diagrama aparecerá aquí. Genéralo con IA o agrega tu primer nodo desde
+                El diagrama aparecerá aquí. Generalo con IA o agrega tu primer nodo desde
                 "Construir manual".
               </p>
             </div>

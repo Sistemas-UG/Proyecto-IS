@@ -4,48 +4,37 @@
 //
 // Flujo de datos: React → POST /api/ai/generate-flow → este archivo → Vertex AI → Gemini → JSON → React
 
+import fs from "fs";
 import { GoogleGenAI } from "@google/genai";
 import { env, isVertexConfigured } from "../config/env.js";
 
-// Prompt base optimizado profesionalmente para BPM de alta complejidad y multirramificado.
+// Prompt base optimizado profesionalmente para BPM sin restricciones arbitrarias de nodos.
 const BASE_PROMPT = `Actúas como Consultor Senior de Procesos de Negocio (BPM) y Arquitecto de Process Mining de nivel empresarial.
 
-Tu objetivo es analizar la descripción proporcionada por el usuario y transformarla en un diagrama de flujo de trabajo (workflow) EXHAUSTIVO, ALTAMENTE DETALLADO Y MULTIRRAMIFICADO.
+Tu objetivo es analizar minuciosamente la descripción del proceso proporcionada por el usuario y transformarla en un diagrama de flujo de trabajo (workflow) exhaustivo, preciso, ejecutable y adaptado a la escala real de esa organización.
 
-REGLAS STRICTAS DE MODELADO Y ARQUITECTURA (COMPLEJIDAD Y GRANULARIDAD OBLIGATORIA):
+REGLAS STRICTAS DE MODELADO Y ARQUITECTURA:
 
-1. Desglose Operativo Granular (NO RESUMAS PASOS):
-   - Cada acción abstracta descrita por el usuario debe dividirse en sus subpasos reales.
-   - Por ejemplo: Si el usuario dice "se revisa y aprueba", debes modelarlo como:
-     [Paso: Revisión de antecedentes] → [Decisión: ¿Cumple requisitos?] → [Paso: Registro de aprobación en sistema] / [Paso: Notificación de rechazo con observaciones].
+1. Escala y Granularidad Dinámica (SIN LÍMITES ARBITRARIOS DE NODOS):
+   - NO limites ni restrinja la cantidad de nodos. Modela el proceso con tantos pasos como sean necesarios según la descripción del usuario.
+   - Procesos simples requerirán pocos nodos; procesos complejos de nivel corporativo requerirán múltiples nodos, bifurcaciones y estados de cierre.
    - Captura la secuencia completa: detonante inicial, tareas operativas, registros en sistemas, validaciones, aprobaciones, notificaciones y todos los posibles finales.
 
-2. Manejo de Excepciones y Caminos "No" Profundos:
-   - NINGUNA decisión debe ser un callejón sin salida ni terminar inmediatamente en "Fin" de forma simplista.
-   - Todo camino de rechazo ("No") DEBE incluir lógica de negocio: solicitar corrección de datos, renegociar condiciones, escalar al nivel superior o registrar el motivo de rechazo antes de finalizar.
-   - Si aplica, modela bucles de reintento (ej. el flujo regresa a un paso previo para corrección de datos).
-
-3. Pasos Implícitos del Sistema y Comunicación:
-   - Incluye automáticamente las tareas operativas de soporte indispensables en entornos empresariales:
-     * Notificaciones por correo / sistema a las partes involucradas.
-     * Actualización de estados en base de datos / ERP / CRM.
-     * Generación o almacenamiento de comprobantes y documentos.
-
-4. Tipología y Estructura Formal de Nodos:
+2. Tipología y Estructura Formal de Nodos:
    - "id": Identificador único en formato string numérico secuencial ("1", "2", "3"...).
    - "type": Asigna estrictamente uno de los siguientes 4 tipos:
      * "inicio": Punto de entrada o desencadenante del proceso (debe existir exactamente 1).
      * "paso": Acción operativa, tarea manual, cálculo, consulta o actualización en sistema.
      * "decision": Punto condicional de validación, aprobación o evaluación de regla de negocio.
-     * "fin": Estado final alcanzado (éxito, rechazo definitivo, cancelación, timeout, etc.).
+     * "fin": Estado final alcanzado (éxito, rechazo, cancelación, timeout, etc.).
    - Regla estricta para "decision": Cada nodo de tipo "decision" DEBE tener obligatoriamente exactamente DOS conexiones (edges) salientes: una con label "Sí" y otra con label "No", apuntando a sus respectivos flujos.
 
-5. Evaluación de Cuellos de Botella (Bottlenecks) e Insights:
+3. Evaluación de Cuellos de Botella (Bottlenecks) e Insights:
    - Identifica con criterio experto los puntos propensos a burocracia, demoras o errores humanos.
    - El campo "paso" en "bottlenecks" DEBE ser una coincidencia exacta con el "label" de un nodo existente en el arreglo "nodes".
    - Riesgo operativo: "Alto" si el tiempo promedio supera 48h, "Medio" si está entre 24h y 48h, y "Bajo" si es inferior a 24h.
 
-6. Formato de Respuesta JSON Estricto:
+4. Formato de Respuesta JSON Estricto:
 Responde EXCLUSIVAMENTE con un objeto JSON válido (sin código Markdown \`\`\`json, sin comentarios ni texto introductorio/final) alineado exactamente a este esquema:
 
 {
@@ -66,17 +55,9 @@ Responde EXCLUSIVAMENTE con un objeto JSON válido (sin código Markdown \`\`\`j
   ]
 }`;
 
-// Construye el prompt final añadiendo el contexto REAL de la organización y nivel de profundidad
-function buildSystemPrompt(jerarquia, tipoIndustria, nivelComplejidad = "detallado") {
+// Construye el prompt final añadiendo el contexto REAL de la organización
+function buildSystemPrompt(jerarquia, tipoIndustria) {
   const bloques = [];
-
-  if (nivelComplejidad === "ultra") {
-    bloques.push(`INSTRUCCIÓN DE PROFUNDIDAD MÁXIMA (NIVEL ENTERPRISE):
-Genera un flujo de trabajo extremadamente completo e interconectado (mínimo 12-18 nodos). Modela detalladamente cada subpaso, firmas de aprobación cruzadas, notificaciones en cada cambio de estado, registros de auditoría y rutas de contingencia ante fallos o rechazos.`);
-  } else {
-    bloques.push(`INSTRUCCIÓN DE PROFUNDIDAD DETALLADA:
-Desglosa la descripción del usuario en un flujo completo y profundo (mínimo 8-12 nodos), asegurando construir caminos paralelos de éxito y manejo completo de excepciones en caso de respuestas negativas.`);
-  }
 
   if (Array.isArray(jerarquia) && jerarquia.length > 0) {
     bloques.push(`CONTEXTO OBLIGATORIO — ESTRUCTURA REAL DE ESTA ORGANIZACIÓN:
@@ -95,25 +76,33 @@ Reglas estrictas sobre esto:
 Adapta el vocabulario, la terminología técnica, los nombres de los pasos y los ejemplos de bottlenecks a las buenas prácticas operativas de este sector concreto.`);
   }
 
+  if (bloques.length === 0) return BASE_PROMPT;
   return bloques.join("\n\n") + "\n\n" + BASE_PROMPT;
 }
 
 let aiClient = null;
 function getClient() {
   if (!aiClient) {
+    // Si GOOGLE_APPLICATION_CREDENTIALS apunta a una ruta local que NO existe en el contenedor de Cloud Run,
+    // eliminamos la variable de entorno para que el SDK use la autenticación nativa (ADC / Service Account).
+    if (process.env.GOOGLE_APPLICATION_CREDENTIALS && !fs.existsSync(process.env.GOOGLE_APPLICATION_CREDENTIALS)) {
+      console.log("[ai.service] Detectado entorno Cloud Run: Usando autenticación nativa mediante Service Account (ADC).");
+      delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    }
+
     aiClient = new GoogleGenAI({
       vertexai: true,
-      project: env.vertex.project,
-      location: env.vertex.location,
+      project: env.vertex.project || "smartflow-506917",
+      location: env.vertex.location || "us-central1",
     });
   }
   return aiClient;
 }
 
-export async function generateFlowFromDescription(descripcion = "", jerarquia = [], tipoIndustria = "", nivelComplejidad = "detallado") {
+export async function generateFlowFromDescription(descripcion = "", jerarquia = [], tipoIndustria = "") {
   if (isVertexConfigured()) {
     try {
-      return await callGemini(descripcion, jerarquia, tipoIndustria, nivelComplejidad);
+      return await callGemini(descripcion, jerarquia, tipoIndustria);
     } catch (err) {
       console.error("[ai.service] Falló Vertex AI/Gemini, usando fallback simulado:", err.message);
       return simulateFlowGeneration(descripcion, jerarquia, tipoIndustria);
@@ -122,16 +111,16 @@ export async function generateFlowFromDescription(descripcion = "", jerarquia = 
   return simulateFlowGeneration(descripcion, jerarquia, tipoIndustria);
 }
 
-async function callGemini(descripcion, jerarquia = [], tipoIndustria = "", nivelComplejidad = "detallado") {
+async function callGemini(descripcion, jerarquia = [], tipoIndustria = "") {
   const ai = getClient();
 
   const response = await ai.models.generateContent({
-    model: env.vertex.model,
+    model: env.vertex.model || "gemini-1.5-pro",
     contents: descripcion,
     config: {
-      systemInstruction: buildSystemPrompt(jerarquia, tipoIndustria, nivelComplejidad),
+      systemInstruction: buildSystemPrompt(jerarquia, tipoIndustria),
       responseMimeType: "application/json",
-      temperature: 0.2, // Temperatura baja para respuestas estructuradas y precisas
+      temperature: 0.3, // Temperatura baja para respuestas más estructuradas y precisas
     },
   });
 
@@ -234,7 +223,7 @@ function simulateFlowGeneration(descripcion, jerarquia = [], tipoIndustria = "")
 function splitIntoSteps(descripcion) {
   const cleaned = (descripcion || "")
     .trim()
-    .replace(/^["“”']+|["“”']+\$/g, "")
+    .replace(/^["“”']+|["cm“”']+\$/g, "")
     .trim();
 
   const MIN_LEN = 4;
@@ -287,7 +276,7 @@ Incluye:
 `;
 
       const response = await ai.models.generateContent({
-        model: env.vertex.model,
+        model: env.vertex.model || "gemini-1.5-pro",
         contents: prompt,
         config: { temperature: 0.3 },
       });

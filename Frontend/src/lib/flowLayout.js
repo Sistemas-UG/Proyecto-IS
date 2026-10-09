@@ -1,3 +1,4 @@
+import dagre from "dagre";
 import { MarkerType } from "reactflow";
 
 // Clases de estilo por tipo de nodo de negocio ("inicio" | "paso" | "decision" | "fin").
@@ -23,39 +24,39 @@ export function edgeStyleForLabel(label) {
   };
 }
 
+const NODE_WIDTH = 200;
+const NODE_HEIGHT = 70;
+
 // Convierte nodos/edges del backend al formato de React Flow.
 // Compartido entre CrearFlujo.jsx (admin, genera con IA y/o construye a mano)
 // y VerFlujo.jsx (cualquier usuario, solo lectura) para que ambos se vean igual.
+//
+// El layout automático lo calcula dagre: arma el grafo real con las
+// conexiones (edges), ordena por niveles de arriba hacia abajo, y separa
+// cada nodo lo suficiente para que no se encimen ni se crucen las líneas
+// (a diferencia del centrado manual anterior, que no consideraba bien las
+// ramas que vuelven a converger en un mismo nodo, como "Aprueba"/"Rechaza" → "Fin").
 export function layoutNodes(rawNodes, rawEdges) {
-  const outgoing = new Map();
-  rawEdges.forEach((e) => {
-    if (!outgoing.has(e.source)) outgoing.set(e.source, []);
-    outgoing.get(e.source).push(e);
-  });
+  const g = new dagre.graphlib.Graph();
+  g.setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: 90 });
 
-  const levels = new Map();
-  const visited = new Set();
-  const queue = rawNodes.length ? [[rawNodes[0].id, 0]] : [];
-  while (queue.length) {
-    const [id, depth] = queue.shift();
-    if (visited.has(id)) continue;
-    visited.add(id);
-    levels.set(id, Math.max(levels.get(id) ?? 0, depth));
-    (outgoing.get(id) || []).forEach((e) => queue.push([e.target, depth + 1]));
-  }
   rawNodes.forEach((n) => {
-    if (!levels.has(n.id)) levels.set(n.id, levels.size);
+    g.setNode(n.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+  });
+  rawEdges.forEach((e) => {
+    g.setEdge(e.source, e.target);
   });
 
-  const perLevelCount = new Map();
-  return rawNodes.map((n) => {
-    const depth = levels.get(n.id) ?? 0;
-    const slot = perLevelCount.get(depth) ?? 0;
-    perLevelCount.set(depth, slot + 1);
+  dagre.layout(g);
 
+  return rawNodes.map((n) => {
+    const pos = g.node(n.id);
     return {
       id: n.id,
-      position: { x: 250 + slot * 260 - (perLevelCount.get(depth) > 1 ? 130 : 0), y: depth * 120 },
+      // dagre devuelve el CENTRO del nodo; React Flow posiciona desde la
+      // esquina superior izquierda, por eso restamos la mitad del tamaño.
+      position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
       // Guardamos el tipo de negocio ("inicio"|"paso"|"decision"|"fin") en data.tipo
       // para poder reconstruir el flujo "crudo" (para guardar/editar) a partir
       // del estado visual de React Flow, tanto si vino de la IA como si el

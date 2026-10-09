@@ -56,8 +56,7 @@ export const api = {
   deleteFlow: (id) => request(`/flows/${id}`, { method: "DELETE" }),
 
   // IA
-  generateFlow: (descripcion, general = false, complejidad = "detallado") =>
-    request("/ai/generate-flow", { method: "POST", body: { descripcion, general, complejidad } }),
+  generateFlow: (descripcion, general = false) => request("/ai/generate-flow", { method: "POST", body: { descripcion, general } }),
   generateReport: (flowData) => request("/ai/generate-report", { method: "POST", body: flowData }),
 
   // Dashboard
