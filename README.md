@@ -1,4 +1,4 @@
-SmartFlow AI — Estado actual del proyecto
+SmartFlow AI Estado actual del proyecto
 
 Proyecto de FISICC (Ingeniería de Software) para automatizar y optimizar procesos de
 negocio con IA. Genera diagramas de flujo a partir de descripciones en lenguaje
@@ -78,14 +78,6 @@ que ya exista en la base de datos.
    envío por Gmail/Nodemailer, validación con transacción en Postgres.
    *(En fase de prueba end-to-end, aún no confirmada 100% funcionando.)*
 
-## Pendiente / en progreso
-
-- Confirmar que el flujo completo de recuperación de contraseña funciona de
-  principio a fin (correo llega, link funciona, contraseña se actualiza).
-- Confirmar el redeploy del frontend en Cloud Run tras el fix del Dockerfile.
-- Evaluar si hace falta redesplegar `smartflow-backend` con los cambios más
-  recientes del backend.
-- Generación real de PDF/Word desde `CrearFlujo.jsx` (reportes descargables).
 
 ## Variables de entorno (backend)
 
