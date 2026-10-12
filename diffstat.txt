@@ -1,0 +1,7 @@
+ Frontend/.gitignore                      |   3 +
+ backend/package-lock.json                | 381 +++++++++++++++++++++++++++++++
+ backend/package.json                     |   7 +-
+ backend/src/controllers/ai.controller.js |  16 +-
+ backend/src/routes/index.js              |   2 +
+ backend/src/services/ai.service.js       |  11 +-
+ 6 files changed, 411 insertions(+), 9 deletions(-)

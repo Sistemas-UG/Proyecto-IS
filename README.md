@@ -1,24 +1,29 @@
-# SmartFlow AI — Frontend + Backend conectados
+SmartFlow AI Estado actual del proyecto
 
-Esta versión de la app trae el **frontend** (React + Vite + Tailwind + React Flow) y el
-**backend** (Node.js + Express, datos en memoria por ahora, pronto se conectarán al servidor) ya conectados entre sí.
+Proyecto de FISICC (Ingeniería de Software) para automatizar y optimizar procesos de
+negocio con IA. Genera diagramas de flujo a partir de descripciones en lenguaje
+natural (Vertex AI / Gemini), detecta cuellos de botella y genera reportes.
+
+**Stack:** React + Vite + Tailwind + React Flow (frontend) · Node.js + Express,
+módulos ES (backend) · PostgreSQL en Cloud SQL · Vertex AI (Gemini) · Google Cloud
+Storage · despliegue en Cloud Run vía Cloud Build.
 
 ## 1. Levantar el backend
 
 ```bash
 cd backend
 npm install
-cp .env.example .env
+# Configura tu .env (ver sección "Variables de entorno" más abajo)
 npm run dev
 ```
 
-Queda corriendo en `http://localhost:4000`. Prueba que responde:
-`curl http://localhost:4000/api/health` → `{"status":"ok"}`
+Corre en `http://localhost:4000`. Prueba: `curl http://localhost:4000/api/health`
+→ `{"status":"ok"}`
 
-## 2. Levantar el frontend (en otra terminal)
+## 2. Levantar el frontend (otra terminal)
 
 ```bash
-cd frontend
+cd Frontend
 npm install
 cp .env.example .env
 npm run dev
@@ -28,41 +33,61 @@ Abrir `http://localhost:5173`.
 
 ## 3. Iniciar sesión
 
-Usar cualquiera de estos usuarios de prueba (de momento por que no se han incluido los servicios de Google Cloud)
+Ya **no hay usuarios de prueba hardcodeados** — el login valida contra la tabla
+`usuarios` en PostgreSQL (Cloud SQL), con contraseñas cifradas con `bcryptjs` y
+sesión real por JWT. Regístrate desde la pantalla de registro o usa una cuenta
+que ya exista en la base de datos.
 
-| Email                 | Password       |
-|------------------------|----------------|
-| sofia@smartflow.ai     | smartflow123   |
-| wilder@smartflow.ai    | smartflow123   |
+## Cómo está conectado
 
-## Cómo quedaron conectados
-
-- **`frontend/src/lib/api.js`** — cliente HTTP único, lee `VITE_API_URL` (por
-  defecto `http://localhost:4000/api`) y agrega el header `Authorization: Bearer <token>`
-  automáticamente en cada request.
-- **`frontend/src/lib/AuthContext.jsx`** — guarda el token en `localStorage`,
-  expone `login()` / `logout()` / `user` a toda la app, y valida la sesión
-  contra `GET /api/auth/me` al recargar la página.
-- **`App.jsx`** — todas las rutas privadas (`/dashboard`, `/flujos`, etc.)
-  están envueltas en `<ProtectedRoute>`, que redirige a `/` si no hay sesión.
-- **`Login.jsx`** → `POST /api/auth/login`
+- **`Frontend/src/lib/api.js`** — cliente HTTP único, lee `VITE_API_URL` y agrega
+  el header `Authorization: Bearer <token>` automáticamente.
+- **`Frontend/src/lib/AuthContext.jsx`** — guarda el token en `localStorage`,
+  expone `login()` / `logout()` / `user`, valida sesión contra `GET /api/auth/me`.
+- **`App.jsx`** — rutas privadas envueltas en `<ProtectedRoute>`.
+- **`Login.jsx`** → `POST /api/auth/login`, `POST /api/auth/register`, y el flujo
+  de recuperación de contraseña (`POST /api/auth/forgot-password`).
+- **`ResetPassword.jsx`** → `POST /api/auth/reset-password`, ruta
+  `/restablecer-contrasena?token=...`.
 - **`Dashboard.jsx`** → `GET /api/dashboard/kpis` + `GET /api/dashboard/recent-flows`
 - **`MisFlujos.jsx`** → `GET /api/flows`
-- **`CrearFlujo.jsx`** → `POST /api/ai/generate-flow` para generar el diagrama
-  (hoy simulado en el backend; el botón "Guardar en Mis Flujos" hace
-  `POST /api/flows` para persistirlo)
+- **`CrearFlujo.jsx`** → `POST /api/ai/generate-flow` (Vertex AI / Gemini genera el
+  flujo real; el layout se ordena automáticamente con `dagre`). El botón
+  "Guardar en Mis Flujos" hace `POST /api/flows`.
 - **`Reportes.jsx`** → `GET /api/reports/summary` + `GET /api/reports/bottlenecks`
 - **`Configuracion.jsx`** → `GET /api/users` + datos del usuario logueado
 
+## Lo que ya está implementado
 
-## Siguientes etapas 
+1. **PostgreSQL real** en Cloud SQL (ya no arreglo en memoria) — tablas de
+   organizaciones, usuarios, flujos, nodos, conexiones, tareas, archivos
+   adjuntos, cuellos de botella e insights de IA.
+2. **Autenticación real** — JWT (`jsonwebtoken`) + contraseñas cifradas con
+   `bcryptjs` (ya no el token demo `demo-token::<id>`).
+3. **Vertex AI + Gemini** conectado en `backend/src/services/ai.service.js`
+   para generar los flujos a partir del texto del usuario.
+4. **Auto-layout de diagramas** con `dagre` — los nodos del flujo generado salen
+   ordenados en vez de encimados.
+5. **Google Cloud Storage** para archivos adjuntos, con URLs firmadas (V4) en
+   vez de públicas.
+6. **Despliegue en Cloud Run** (backend y frontend), con build vía Cloud Build
+   y Dockerfiles propios (el frontend se sirve con nginx sobre el build de Vite).
+7. **Cloud Monitoring** — dashboard básico configurado para el proyecto.
+8. **Recuperación de contraseña por correo** — recién implementada: token
+   aleatorio (hash guardado en `password_reset_tokens`, expira en 30 min),
+   envío por Gmail/Nodemailer, validación con transacción en Postgres.
+   *(En fase de prueba end-to-end, aún no confirmada 100% funcionando.)*
 
-1. **PostgreSQL** real en el backend (hoy usa un arreglo en memoria).
-2. **JWT real** con `jsonwebtoken` + hash de contraseñas con `bcrypt` (hoy el
-   "token" es un string simple `demo-token::<id>`, suficiente para desarrollar
-   pero no para producción).
-3. **Vertex AI + Gemini** real en `backend/src/services/ai.service.js`
-   (hoy genera el flujo con una lógica simulada, pero el contrato de
-   respuesta ya está definido para no tener que tocar el frontend).
-4. **Contenedores** para empaquetar backend + PostgreSQL.
-5. Generación real de PDF/Word desde `CrearFlujo.jsx`.
+
+## Variables de entorno (backend)
+
+No se versiona el `.env` real. Variables que usa el backend:
+
+```
+PORT, NODE_ENV, CORS_ORIGIN, FRONTEND_URL
+DB_USER, DB_PASSWORD, DB_NAME, DB_PORT, DB_HOST, INSTANCE_CONNECTION_NAME
+GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, GEMINI_MODEL, GOOGLE_APPLICATION_CREDENTIALS
+GCS_BUCKET_NAME
+JWT_SECRET
+GMAIL_USER, GMAIL_APP_PASSWORD
+```
