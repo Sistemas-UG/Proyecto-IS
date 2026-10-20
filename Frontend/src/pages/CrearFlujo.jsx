@@ -7,10 +7,12 @@ import "reactflow/dist/style.css";
 import {
   Sparkles, Lightbulb, FileText, FileDown, Loader2, CheckCircle2,
   PlayCircle, GitBranch, CircleDot, Square, Trash2, Wand2, MousePointerClick, Building2,
+  UploadCloud,
 } from "lucide-react";
 import AppShell, { TopBar } from "../components/AppShell";
 import FlowZoomControls from "../components/FlowZoomControls";
 import { api } from "../lib/api";
+import { useAuth } from "../lib/AuthContext";
 import { layoutNodes, layoutEdges, styleForTipo, edgeStyleForLabel } from "../lib/flowLayout";
 
 const EXAMPLE =
@@ -45,6 +47,9 @@ function toRawFlow(nodes, edges) {
 }
 
 export default function CrearFlujo() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   // "ia" = describir el proceso y dejar que Gemini lo genere.
   // "manual" = construir el diagrama a mano, nodo por nodo.
   // El lienzo (nodes/edges) es compartido: se puede generar con IA y luego
@@ -58,6 +63,10 @@ export default function CrearFlujo() {
   const [error, setError] = useState("");
   const [aiResult, setAiResult] = useState(null); // guarda insight/bottlenecks/tipo de la última generación
   const [myOrg, setMyOrg] = useState(null); // sector + jerarquía real de mi organización (solo informativo aquí)
+
+  // --- Carga de Protocolo PDF (solo admin) ---
+  const pdfInputRef = useRef(null);
+  const [extractingPdf, setExtractingPdf] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,6 +155,32 @@ export default function CrearFlujo() {
     setNodes((nds) => nds.filter((n) => !nodeIds.has(n.id)));
     setEdges((eds) => eds.filter((e) => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target)));
     setSelection({ nodes: [], edges: [] });
+  };
+
+  // Lee el PDF de protocolo seleccionado, lo manda al backend para que
+  // extraiga su texto (el PDF no se guarda en ningún lado, solo se procesa
+  // en memoria) y precarga el resultado en el textarea de descripción, para
+  // que el admin lo revise/edite antes de presionar "Generar Flujo con IA".
+  const handlePdfSelected = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // permite volver a seleccionar el mismo archivo después
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
+      setError("Selecciona un archivo PDF.");
+      return;
+    }
+
+    setExtractingPdf(true);
+    setError("");
+    try {
+      const { descripcion: textoExtraido } = await api.extractPdfFlow(file);
+      setDescripcion(textoExtraido);
+    } catch (err) {
+      setError(err.message || "No se pudo leer el PDF.");
+    } finally {
+      setExtractingPdf(false);
+    }
   };
 
   const handleGenerar = async () => {
@@ -270,6 +305,37 @@ export default function CrearFlujo() {
 
           {mode === "ia" ? (
             <>
+              {isAdmin && (
+                <>
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    ref={pdfInputRef}
+                    onChange={handlePdfSelected}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => pdfInputRef.current?.click()}
+                    disabled={extractingPdf}
+                    className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-ink dark:text-white border border-dashed border-border dark:border-navyCard rounded-lg py-2.5 font-body bg-bg dark:bg-navyDeep hover:border-blue transition-colors disabled:opacity-70 mb-2 cursor-pointer"
+                  >
+                    {extractingPdf ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" /> Leyendo PDF…
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud size={14} className="text-blue" /> Cargar Protocolo PDF
+                      </>
+                    )}
+                  </button>
+                  <p className="text-[11px] text-faint font-body mb-4">
+                    La IA extrae el contenido y precarga la descripción.
+                  </p>
+                </>
+              )}
+
               <label className="text-xs font-semibold text-ink dark:text-white font-body mb-2">
                 1. Describe tu flujo en lenguaje natural (Español)
               </label>
@@ -289,8 +355,7 @@ export default function CrearFlujo() {
                   className="mt-0.5 accent-blue"
                 />
                 <span>
-                  Generar como flujo <strong className="text-ink dark:text-white">general</strong> (ignora la jerarquía
-                  de mi organización — útil para plantillas reutilizables por otras empresas)
+                  Flujo <strong className="text-ink dark:text-white">general</strong> (sin jerarquía de la organización)
                 </span>
               </label>
 
@@ -298,10 +363,9 @@ export default function CrearFlujo() {
                 <div className="flex items-start gap-2 text-[11px] text-muted dark:text-faint font-body rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-3 mb-4">
                   <Building2 size={13} className="text-blue shrink-0 mt-0.5" />
                   <span>
-                    Se generará usando el contexto de <strong className="text-ink dark:text-white">{myOrg.nombre}</strong>
-                    {myOrg.tipo_industria ? <> ({myOrg.tipo_industria})</> : null}: solo se usarán los roles{" "}
-                    <strong className="text-ink dark:text-white">{(myOrg.jerarquia || []).join(", ") || "—"}</strong>.{" "}
-                    Puedes editar esto en Configuración.
+                    <strong className="text-ink dark:text-white">{myOrg.nombre}</strong>
+                    {" · "}
+                    <strong className="text-ink dark:text-white">{(myOrg.jerarquia || []).join(", ") || "—"}</strong>
                   </span>
                 </div>
               )}
@@ -323,8 +387,7 @@ export default function CrearFlujo() {
               </button>
 
               <p className="text-[11px] text-faint font-body mt-3">
-                Tip: después de generarlo, puedes cambiar a "Construir manual" para agregar, editar o
-                eliminar pasos sobre el mismo diagrama.
+                Tip: luego puedes editarlo en "Construir manual".
               </p>
             </>
           ) : (
@@ -353,9 +416,8 @@ export default function CrearFlujo() {
               </button>
 
               <ul className="text-[11px] leading-relaxed text-muted dark:text-faint font-body list-disc pl-4 space-y-1">
-                <li>Arrastra desde el borde de un nodo hasta otro para conectarlos.</li>
-                <li>Doble clic en un nodo o conexión para editar su texto.</li>
-                <li>Haz clic para seleccionar y usa "Eliminar seleccionado" (o la tecla Supr).</li>
+                <li>Arrastra entre nodos para conectarlos.</li>
+                <li>Doble clic para editar un nodo o conexión.</li>
               </ul>
             </>
           )}
@@ -369,7 +431,7 @@ export default function CrearFlujo() {
                 <Lightbulb size={13} className="text-blue dark:text-blue-400" /> AI Insight
               </p>
               <p className="text-xs leading-relaxed text-muted dark:text-faint font-body mb-2">
-                <strong className="text-ink dark:text-white">Optimización inteligente:</strong> {aiResult.insight.optimizacion}
+                <strong className="text-ink dark:text-white">Optimización:</strong> {aiResult.insight.optimizacion}
               </p>
               <p className="text-xs leading-relaxed text-muted dark:text-faint font-body mb-2">
                 <strong className="text-ink dark:text-white">Sugerencia:</strong> {aiResult.insight.sugerencia}
