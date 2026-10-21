@@ -276,7 +276,7 @@ Incluye:
 `;
 
       const response = await ai.models.generateContent({
-        model: env.vertex.model || "gemini-1.5-pro",
+        model: env.vertex.model || "gemini-3.8-flash",
         contents: prompt,
         config: { temperature: 0.3 },
       });

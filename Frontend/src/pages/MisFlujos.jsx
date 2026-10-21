@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { PlusCircle, Workflow, ChevronRight, Search, Loader2, Trash2 } from "lucide-react";
+import { PlusCircle, Workflow, ChevronRight, Search, Loader2, Trash2, CheckCircle2 } from "lucide-react";
 import AppShell, { TopBar } from "../components/AppShell";
 import { Card, Pill } from "../components/ui";
 import { api } from "../lib/api";
@@ -16,10 +16,10 @@ export default function MisFlujos() {
   const [searchTerm, setSearchTerm] = useState("");
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState(null);
 
   // Normaliza la estructura del backend evitando errores de runtime
   const normalizeFlow = (f) => {
-    // Parseo seguro de fecha
     let formattedDate = "Reciente";
     const rawDate = f.fecha || f.created_at || f.createdAt;
     if (rawDate) {
@@ -33,7 +33,6 @@ export default function MisFlujos() {
       }
     }
 
-    // Extracción exhaustiva de pasos/nodos (JSON o Arrays)
     let stepsData = f.pasos || f.nodes || f.steps || f.diagrama?.nodes || f.pasos_json || [];
     if (typeof stepsData === "string") {
       try { stepsData = JSON.parse(stepsData); } catch (e) { stepsData = []; }
@@ -79,17 +78,43 @@ export default function MisFlujos() {
     };
   }, []);
 
+  // --- ALTERNAR ESTADO (Activo <-> Completado) ---
+  const handleToggleStatus = async (flow) => {
+    const nuevoEstado = flow.estado === "Activo" ? "Completado" : "Activo";
+    setUpdatingStatusId(flow.id);
+    
+    try {
+      if (api.updateFlow) {
+        await api.updateFlow(flow.id, { estado: nuevoEstado });
+      } else if (api.updateFlowStatus) {
+        await api.updateFlowStatus(flow.id, nuevoEstado);
+      }
+      
+      setFlows((prev) =>
+        prev.map((item) => (item.id === flow.id ? { ...item, estado: nuevoEstado } : item))
+      );
+    } catch (err) {
+      console.error("Error al cambiar estado:", err);
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
   const handleDelete = async (flow) => {
     if (!window.confirm(`¿Seguro que deseas eliminar el flujo "${flow.nombre}"? Esta acción no se puede deshacer.`)) return;
-    setDeletingId(flow.id); setError("");
+    setDeletingId(flow.id); 
+    setError("");
     try {
       await api.deleteFlow(flow.id);
       setFlows((current) => current.filter((item) => item.id !== flow.id));
-    } catch (err) { setError(err.message || "No se pudo eliminar el flujo."); }
-    finally { setDeletingId(null); }
+    } catch (err) { 
+      setError(err.message || "No se pudo eliminar el flujo."); 
+    } finally { 
+      setDeletingId(null); 
+    }
   };
 
-  // Filtrado reactivo mediante el buscador
+  // Filtrado reactivo
   const filteredFlows = flows.filter(
     (f) =>
       f.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -117,6 +142,7 @@ export default function MisFlujos() {
 
       <div className="flex-1 overflow-auto p-6 md:p-8 w-full max-w-7xl mx-auto font-body">
         {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+        
         <div className="flex items-center justify-between mb-6">
           <p className="text-sm text-slate-500 dark:text-slate-400 font-body">
             {loading ? (
@@ -170,11 +196,13 @@ export default function MisFlujos() {
                 key={f.id}
                 className="grid grid-cols-[2fr_1fr_1fr_1fr_0.8fr] items-center px-6 py-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors border-t border-slate-100 dark:border-slate-800/60 first:border-t-0 group"
               >
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 w-9 h-9 text-blue-600 dark:text-blue-400 shrink-0 group-hover:scale-105 transition-transform">
-                    <Workflow size={16} />
-                  </div>
-                  <button type="button" onClick={() => navigate(`/flujos/${f.id}`)} className="text-left text-sm font-medium text-slate-900 dark:text-white font-body group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                {/* Nombre limpio sin el icono cuadrado */}
+                <div className="flex items-center">
+                  <button 
+                    type="button" 
+                    onClick={() => navigate(`/flujos/${f.id}`)} 
+                    className="text-left text-sm font-semibold text-slate-900 dark:text-white font-body group-hover:text-blue-500 transition-colors"
+                  >
                     {f.nombre}
                   </button>
                 </div>
@@ -187,17 +215,44 @@ export default function MisFlujos() {
                   {f.pasos} {f.pasos === 1 ? "paso" : "pasos"}
                 </span>
 
+                {/* Botón de Estado Clicable (Activo <-> Completado) */}
                 <div>
-                  <Pill tone={f.estado === "Activo" ? "green" : "amber"}>
-                    {f.estado}
-                  </Pill>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleStatus(f)}
+                    disabled={updatingStatusId === f.id}
+                    title="Haz clic para cambiar el estado del flujo"
+                    className="hover:scale-105 active:scale-95 transition-transform cursor-pointer inline-flex items-center gap-1.5"
+                  >
+                    {updatingStatusId === f.id ? (
+                      <Loader2 size={13} className="animate-spin text-blue-500" />
+                    ) : (
+                      <Pill tone={f.estado === "Activo" ? "green" : f.estado === "Completado" ? "blue" : "amber"}>
+                        {f.estado === "Completado" && <CheckCircle2 size={11} className="inline mr-1" />}
+                        {f.estado}
+                      </Pill>
+                    )}
+                  </button>
                 </div>
 
                 <div className="flex items-center justify-end gap-2">
-                  <button type="button" onClick={() => handleDelete(f)} disabled={deletingId === f.id} title="Eliminar flujo" aria-label={`Eliminar ${f.nombre}`} className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50">
+                  <button 
+                    type="button" 
+                    onClick={() => handleDelete(f)} 
+                    disabled={deletingId === f.id} 
+                    title="Eliminar flujo" 
+                    aria-label={`Eliminar ${f.nombre}`} 
+                    className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+                  >
                     {deletingId === f.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                   </button>
-                  <button type="button" onClick={() => navigate(`/flujos/${f.id}`)} className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:translate-x-1 transition-transform font-body">Abrir <ChevronRight size={14} /></button>
+                  <button 
+                    type="button" 
+                    onClick={() => navigate(`/flujos/${f.id}`)} 
+                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:translate-x-1 transition-transform font-body"
+                  >
+                    Abrir <ChevronRight size={14} />
+                  </button>
                 </div>
               </div>
             ))
