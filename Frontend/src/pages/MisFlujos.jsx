@@ -9,7 +9,6 @@ import { useAuth } from "../lib/AuthContext";
 export default function MisFlujos() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = user?.role === "admin";
   
   const [flows, setFlows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,7 +17,7 @@ export default function MisFlujos() {
   const [deletingId, setDeletingId] = useState(null);
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
 
-  // Normaliza la estructura del backend evitando errores de runtime
+  // Normaliza la estructura recibida del backend
   const normalizeFlow = (f) => {
     let formattedDate = "Reciente";
     const rawDate = f.fecha || f.created_at || f.createdAt;
@@ -78,23 +77,30 @@ export default function MisFlujos() {
     };
   }, []);
 
-  // --- ALTERNAR ESTADO (Activo <-> Completado) ---
+  // --- CAMBIO OPTIMISTA DE ESTADO (Activo <-> Completado) ---
   const handleToggleStatus = async (flow) => {
-    const nuevoEstado = flow.estado === "Activo" ? "Completado" : "Activo";
+    const estadoOriginal = flow.estado;
+    const nuevoEstado = estadoOriginal === "Activo" ? "Completado" : "Activo";
+
+    // 1. Cambia visualmente al instante
+    setFlows((prev) =>
+      prev.map((item) => (item.id === flow.id ? { ...item, estado: nuevoEstado } : item))
+    );
     setUpdatingStatusId(flow.id);
-    
+
     try {
-      if (api.updateFlow) {
+      // 2. Persiste en el backend
+      if (typeof api.updateFlow === "function") {
         await api.updateFlow(flow.id, { estado: nuevoEstado });
-      } else if (api.updateFlowStatus) {
+      } else if (typeof api.updateFlowStatus === "function") {
         await api.updateFlowStatus(flow.id, nuevoEstado);
       }
-      
-      setFlows((prev) =>
-        prev.map((item) => (item.id === flow.id ? { ...item, estado: nuevoEstado } : item))
-      );
     } catch (err) {
-      console.error("Error al cambiar estado:", err);
+      console.error("Error al guardar estado en el backend:", err);
+      // Revierte si el servidor retorna error
+      setFlows((prev) =>
+        prev.map((item) => (item.id === flow.id ? { ...item, estado: estadoOriginal } : item))
+      );
     } finally {
       setUpdatingStatusId(null);
     }
@@ -114,7 +120,7 @@ export default function MisFlujos() {
     }
   };
 
-  // Filtrado reactivo
+  // Filtrado reactivo por nombre o estado
   const filteredFlows = flows.filter(
     (f) =>
       f.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -163,7 +169,7 @@ export default function MisFlujos() {
         </div>
 
         <Card className="overflow-hidden border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm dark:shadow-2xl bg-white dark:bg-[#111827]/90 backdrop-blur-xl">
-          {/* Header de la Tabla */}
+          {/* Header de Tabla */}
           <div className="grid grid-cols-[2fr_1fr_1fr_1fr_0.6fr] px-6 py-3.5 text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800/80 uppercase tracking-wider font-body">
             <span>Nombre</span>
             <span>Fecha de creación</span>
@@ -172,7 +178,7 @@ export default function MisFlujos() {
             <span></span>
           </div>
 
-          {/* Lista de Filas */}
+          {/* Filas */}
           {loading ? (
             <div className="py-12 text-center text-xs text-slate-400">
               <Loader2 size={20} className="animate-spin mx-auto mb-2 text-blue-500" />
@@ -196,12 +202,12 @@ export default function MisFlujos() {
                 key={f.id}
                 className="grid grid-cols-[2fr_1fr_1fr_1fr_0.8fr] items-center px-6 py-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors border-t border-slate-100 dark:border-slate-800/60 first:border-t-0 group"
               >
-                {/* Nombre limpio sin el icono cuadrado */}
+                {/* Nombre sin icono cuadrado */}
                 <div className="flex items-center">
                   <button 
                     type="button" 
                     onClick={() => navigate(`/flujos/${f.id}`)} 
-                    className="text-left text-sm font-semibold text-slate-900 dark:text-white font-body group-hover:text-blue-500 transition-colors"
+                    className="text-left text-sm font-semibold text-slate-900 dark:text-white font-body group-hover:text-blue-500 transition-colors cursor-pointer"
                   >
                     {f.nombre}
                   </button>
@@ -215,7 +221,7 @@ export default function MisFlujos() {
                   {f.pasos} {f.pasos === 1 ? "paso" : "pasos"}
                 </span>
 
-                {/* Botón de Estado Clicable (Activo <-> Completado) */}
+                {/* Botón Clicable de Estado */}
                 <div>
                   <button
                     type="button"
@@ -242,14 +248,14 @@ export default function MisFlujos() {
                     disabled={deletingId === f.id} 
                     title="Eliminar flujo" 
                     aria-label={`Eliminar ${f.nombre}`} 
-                    className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+                    className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 transition-colors cursor-pointer"
                   >
                     {deletingId === f.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                   </button>
                   <button 
                     type="button" 
                     onClick={() => navigate(`/flujos/${f.id}`)} 
-                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:translate-x-1 transition-transform font-body"
+                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:translate-x-1 transition-transform font-body cursor-pointer"
                   >
                     Abrir <ChevronRight size={14} />
                   </button>
