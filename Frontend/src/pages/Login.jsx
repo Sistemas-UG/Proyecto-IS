@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Mail, Lock, User, AtSign, ArrowRight, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
-import { Logo, Avatar } from "../components/ui";
+import { Mail, Lock, User, AtSign, ArrowRight, Loader2, AlertCircle, CheckCircle2, Sun, Moon } from "lucide-react";
+import { Logo } from "../components/ui";
 import { useAuth } from "../lib/AuthContext";
+import loginBgDark from "../assets/login-bg-dark.png";
+import loginBgLight from "../assets/login-bg-light.png";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -19,6 +21,17 @@ export default function Login() {
   const [resetNotice, setResetNotice] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Modo oscuro/claro: mismo mecanismo (localStorage "theme") que usa el
+  // resto de la app en Configuración, para que el cambio sea consistente.
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains("dark"));
+
+  const toggleTheme = () => {
+    const next = isDark ? "light" : "dark";
+    localStorage.setItem("theme", next);
+    document.documentElement.classList.toggle("dark", next === "dark");
+    setIsDark(next === "dark");
+  };
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -80,24 +93,32 @@ export default function Login() {
   return (
     <div className="w-full min-h-screen flex bg-bg dark:bg-navyDeep transition-colors font-body">
       {/* Izquierda: Branding */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 bg-navyDeep dark:bg-navy text-white transition-colors">
-        <Logo light />
+      <div
+        className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 transition-colors bg-cover bg-center"
+        style={{ backgroundImage: `url(${isDark ? loginBgDark : loginBgLight})` }}
+      >
+        <Logo />
         <div className="max-w-md">
-          <span className="text-xs font-semibold tracking-wider text-blue-400 uppercase font-body">
+          <span className="text-xs font-semibold tracking-wider text-blue uppercase font-body">
             Automatización de procesos • PyMEs
           </span>
-          <h1 className="text-3xl font-bold font-display mt-3 mb-4 leading-tight">
+          <h1 className="text-3xl font-bold font-display mt-3 mb-4 leading-tight text-ink dark:text-white">
             Diseña y automatiza procesos en minutos, no en semanas.
           </h1>
-          <p className="text-sm text-faint leading-relaxed font-body">
+          <p className="text-sm text-muted dark:text-faint leading-relaxed font-body">
             Describe tu proceso en lenguaje natural. SmartFlow AI genera el flujo y detecta
             cuellos de botella.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Avatar initials="SF" tone="bg-blue" size={28} />
-          <span className="text-xs text-faint font-body">SmartFlow AI</span>
-        </div>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+          title={isDark ? "Modo claro" : "Modo oscuro"}
+          className="w-10 h-10 flex items-center justify-center rounded-full border border-border dark:border-navyCard bg-white/70 dark:bg-navy/70 backdrop-blur text-ink dark:text-white shadow-soft hover:border-blue transition-colors cursor-pointer self-start"
+        >
+          {isDark ? <Sun size={17} /> : <Moon size={17} />}
+        </button>
       </div>
 
       {/* Derecha: Formulario */}
