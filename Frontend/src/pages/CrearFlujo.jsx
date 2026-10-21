@@ -7,7 +7,7 @@ import "reactflow/dist/style.css";
 import {
   Sparkles, Lightbulb, FileText, FileDown, Loader2, CheckCircle2,
   PlayCircle, GitBranch, CircleDot, Square, Trash2, Wand2, MousePointerClick, Building2,
-  UploadCloud,
+  UploadCloud, X, Edit3,
 } from "lucide-react";
 import AppShell, { TopBar } from "../components/AppShell";
 import FlowZoomControls from "../components/FlowZoomControls";
@@ -20,7 +20,6 @@ const EXAMPLE =
   "el gerente la revisa, si la aprueba, RRHH verifica días restantes y da el visto " +
   "bueno final. Si se rechaza en algún paso, notificar al empleado.";
 
-// Tipos de nodo de negocio que el usuario puede agregar a mano.
 const NODE_TYPES = [
   { tipo: "inicio", label: "Inicio", icon: PlayCircle, defaultLabel: "Inicio del proceso" },
   { tipo: "paso", label: "Paso", icon: Square, defaultLabel: "Nuevo paso" },
@@ -28,9 +27,6 @@ const NODE_TYPES = [
   { tipo: "fin", label: "Fin", icon: CircleDot, defaultLabel: "Fin del proceso" },
 ];
 
-// Convierte el estado visual de React Flow (nodes/edges, sea que hayan venido
-// de la IA o se hayan creado/editado a mano) al formato "crudo" que espera el
-// backend: { id, label, type } y { id, source, target, label }.
 function toRawFlow(nodes, edges) {
   const rawNodes = nodes.map((n) => ({
     id: n.id,
@@ -50,10 +46,6 @@ export default function CrearFlujo() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
-  // "ia" = describir el proceso y dejar que Gemini lo genere.
-  // "manual" = construir el diagrama a mano, nodo por nodo.
-  // El lienzo (nodes/edges) es compartido: se puede generar con IA y luego
-  // seguir editando/agregando nodos a mano sobre el mismo diagrama.
   const [mode, setMode] = useState("ia");
 
   // --- Modo IA ---
@@ -61,12 +53,20 @@ export default function CrearFlujo() {
   const [flujoGeneral, setFlujoGeneral] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [aiResult, setAiResult] = useState(null); // guarda insight/bottlenecks/tipo de la última generación
-  const [myOrg, setMyOrg] = useState(null); // sector + jerarquía real de mi organización (solo informativo aquí)
+  const [aiResult, setAiResult] = useState(null);
+  const [myOrg, setMyOrg] = useState(null);
 
-  // --- Carga de Protocolo PDF (solo admin) ---
+  // --- Carga de Protocolo PDF ---
   const pdfInputRef = useRef(null);
   const [extractingPdf, setExtractingPdf] = useState(false);
+
+  // --- Estado para Modal de Edición (Reemplaza window.prompt) ---
+  const [editModal, setEditModal] = useState({
+    isOpen: false,
+    type: null, // 'node' | 'edge'
+    id: null,
+    label: "",
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -79,7 +79,7 @@ export default function CrearFlujo() {
     };
   }, []);
 
-  // --- Nombre + guardado (compartido) ---
+  // --- Nombre + guardado ---
   const [flowName, setFlowName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -95,17 +95,27 @@ export default function CrearFlujo() {
 
   const markDirty = () => setSaved(false);
 
+  // Conexión limpia con curvas 'smoothstep' y flecha azul
   const onConnect = useCallback(
     (c) => {
       markDirty();
-      setEdges((eds) => addEdge({ ...c, markerEnd: { type: MarkerType.ArrowClosed } }, eds));
+      setEdges((eds) =>
+        addEdge(
+          {
+            ...c,
+            type: "smoothstep",
+            style: { stroke: "#3b82f6", strokeWidth: 2 },
+            markerEnd: { type: MarkerType.ArrowClosed, color: "#3b82f6" },
+          },
+          eds
+        )
+      );
     },
     [setEdges]
   );
 
   const onSelectionChange = useCallback((sel) => setSelection(sel), []);
 
-  // Agrega un nodo nuevo al lienzo (modo manual, o para completar un flujo generado por IA).
   const handleAddNode = (tipoInfo) => {
     counterRef.current += 1;
     const id = `manual-${Date.now()}-${counterRef.current}`;
@@ -122,29 +132,50 @@ export default function CrearFlujo() {
     setNodes((nds) => nds.concat(newNode));
   };
 
-  // Doble clic en un nodo -> editar su texto.
-  const onNodeDoubleClick = useCallback(
-    (_evt, node) => {
-      const next = window.prompt("Editar texto del paso:", node.data?.label || "");
-      if (next === null) return;
-      markDirty();
-      setNodes((nds) => nds.map((n) => (n.id === node.id ? { ...n, data: { ...n.data, label: next } } : n)));
-    },
-    [setNodes]
-  );
+  // Doble clic en un nodo -> abre modal
+  const onNodeDoubleClick = useCallback((_evt, node) => {
+    setEditModal({
+      isOpen: true,
+      type: "node",
+      id: node.id,
+      label: node.data?.label || "",
+    });
+  }, []);
 
-  // Doble clic en una conexión -> editar su etiqueta (ej. "Sí" / "No").
-  const onEdgeDoubleClick = useCallback(
-    (_evt, edge) => {
-      const next = window.prompt('Editar etiqueta de la conexión (ej. "Sí", "No", o vacío):', edge.label || "");
-      if (next === null) return;
-      markDirty();
-      setEdges((eds) =>
-        eds.map((e) => (e.id === edge.id ? { ...e, label: next || undefined, ...edgeStyleForLabel(next) } : e))
+  // Doble clic en una conexión -> abre modal
+  const onEdgeDoubleClick = useCallback((_evt, edge) => {
+    setEditModal({
+      isOpen: true,
+      type: "edge",
+      id: edge.id,
+      label: edge.label || "",
+    });
+  }, []);
+
+  // Guardar cambios desde el modal
+  const handleSaveModal = (e) => {
+    e.preventDefault();
+    if (!editModal.id) return;
+    markDirty();
+
+    if (editModal.type === "node") {
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === editModal.id ? { ...n, data: { ...n.data, label: editModal.label } } : n
+        )
       );
-    },
-    [setEdges]
-  );
+    } else if (editModal.type === "edge") {
+      setEdges((eds) =>
+        eds.map((e) =>
+          e.id === editModal.id
+            ? { ...e, label: editModal.label || undefined, ...edgeStyleForLabel(editModal.label) }
+            : e
+        )
+      );
+    }
+
+    setEditModal({ isOpen: false, type: null, id: null, label: "" });
+  };
 
   const hasSelection = selection.nodes.length > 0 || selection.edges.length > 0;
 
@@ -157,13 +188,9 @@ export default function CrearFlujo() {
     setSelection({ nodes: [], edges: [] });
   };
 
-  // Lee el PDF de protocolo seleccionado, lo manda al backend para que
-  // extraiga su texto (el PDF no se guarda en ningún lado, solo se procesa
-  // en memoria) y precarga el resultado en el textarea de descripción, para
-  // que el admin lo revise/edite antes de presionar "Generar Flujo con IA".
   const handlePdfSelected = async (e) => {
     const file = e.target.files?.[0];
-    e.target.value = ""; // permite volver a seleccionar el mismo archivo después
+    e.target.value = "";
     if (!file) return;
 
     if (file.type !== "application/pdf") {
@@ -215,9 +242,6 @@ export default function CrearFlujo() {
         nodes: rawNodes,
         edges: rawEdges,
         aiInsight: aiResult?.insight || null,
-        // "especifico" solo si vino de la IA usando la jerarquía real de la
-        // organización; cualquier flujo construido o editado a mano se marca
-        // como "general".
         tipo: aiResult?.tipo && mode === "ia" ? aiResult.tipo : "general",
       });
       setSaved(true);
@@ -228,7 +252,6 @@ export default function CrearFlujo() {
     }
   };
 
-  // Genera el PDF como Blob para mostrarlo en pantalla antes de descargarlo.
   const prepararPDF = (texto) => {
     if (!texto) return;
     const doc = new jsPDF({ unit: "pt", format: "letter" });
@@ -258,7 +281,6 @@ export default function CrearFlujo() {
         format: "pdf",
       });
       setReportText(report.contenido);
-      // El reporte queda listo para revisar; la descarga es una acción aparte.
       prepararPDF(report.contenido);
     } catch (err) {
       setError(err.message || "No se pudo generar el reporte.");
@@ -424,7 +446,7 @@ export default function CrearFlujo() {
 
           {error && <p className="text-xs text-red font-body mt-3">{error}</p>}
 
-          {/* Caja AI Insight (si la última generación con IA la produjo) */}
+          {/* Caja AI Insight */}
           {aiResult?.insight && (
             <div className="mt-6 rounded-xl p-4 bg-blueSoft dark:bg-blue/15 border border-blue/20 dark:border-blue/30 transition-colors">
               <p className="text-xs font-semibold text-ink dark:text-white font-body mb-2 flex items-center gap-1.5">
@@ -442,7 +464,7 @@ export default function CrearFlujo() {
             </div>
           )}
 
-          {/* Nombre + Guardar / Reportes — disponible sin importar el modo, apenas haya nodos */}
+          {/* Nombre + Guardar */}
           {hasNodes && (
             <div className="mt-6">
               <p className="text-xs font-semibold text-ink dark:text-white font-body mb-2">Nombre del flujo</p>
@@ -539,6 +561,11 @@ export default function CrearFlujo() {
             onEdgeDoubleClick={onEdgeDoubleClick}
             onSelectionChange={onSelectionChange}
             deleteKeyCode={["Backspace", "Delete"]}
+            defaultEdgeOptions={{
+              type: "smoothstep",
+              style: { stroke: "#3b82f6", strokeWidth: 2 },
+              markerEnd: { type: MarkerType.ArrowClosed, color: "#3b82f6" },
+            }}
             fitView
             proOptions={{ hideAttribution: true }}
           >
@@ -553,6 +580,61 @@ export default function CrearFlujo() {
           </ReactFlow>
         </div>
       </div>
+
+      {/* --- MODAL DE EDICIÓN ESTILIZADO (Reemplaza window.prompt) --- */}
+      {editModal.isOpen && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-md bg-white dark:bg-navy border border-border dark:border-navyCard rounded-2xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-border dark:border-navyCard pb-3">
+              <h3 className="text-sm font-bold text-ink dark:text-white flex items-center gap-2 font-display">
+                <Edit3 size={16} className="text-blue" />
+                {editModal.type === "node" ? "Editar texto del paso" : "Editar etiqueta de conexión"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditModal({ isOpen: false, type: null, id: null, label: "" })}
+                className="text-muted dark:text-faint hover:text-ink dark:hover:text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveModal} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-muted dark:text-faint block mb-1 font-body">
+                  {editModal.type === "node"
+                    ? "Nombre / Descripción del paso"
+                    : 'Etiqueta (ej. "Sí", "No", "Aprobado")'}
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={editModal.label}
+                  onChange={(e) => setEditModal((prev) => ({ ...prev, label: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border dark:border-navyCard bg-bg dark:bg-navyDeep text-sm text-ink dark:text-white focus:outline-none focus:border-blue font-body"
+                  placeholder={editModal.type === "node" ? "Texto del paso..." : "Vacío para sin etiqueta"}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditModal({ isOpen: false, type: null, id: null, label: "" })}
+                  className="px-4 py-2.5 rounded-xl border border-border dark:border-navyCard text-muted dark:text-faint text-xs font-semibold hover:bg-bg dark:hover:bg-navyDeep transition-colors font-body"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2.5 rounded-xl bg-blue hover:bg-blue/90 text-white text-xs font-semibold shadow-md transition-all font-body"
+                >
+                  Guardar cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
