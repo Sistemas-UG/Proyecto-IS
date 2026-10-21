@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Mail, Lock, User, AtSign, ArrowRight, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Mail, Lock, User, AtSign, ArrowRight, Loader2, AlertCircle, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { Logo, Avatar } from "../components/ui";
 import { useAuth } from "../lib/AuthContext";
 
@@ -14,6 +14,7 @@ export default function Login() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
   const [resetNotice, setResetNotice] = useState(false);
@@ -158,15 +159,24 @@ export default function Login() {
               />
             </div>
 
+            {/* Campo Contraseña con Botón de Mostrar/Ocultar */}
             <div className="relative">
               <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted dark:text-faint" />
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Contraseña"
-                className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-border dark:border-navyCard bg-bg dark:bg-navy text-ink dark:text-white outline-none focus:border-blue transition-colors"
+                className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-border dark:border-navyCard bg-bg dark:bg-navy text-ink dark:text-white outline-none focus:border-blue transition-colors"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted dark:text-faint hover:text-ink dark:hover:text-white transition-colors cursor-pointer"
+                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
 
             {!isRegistering && (
