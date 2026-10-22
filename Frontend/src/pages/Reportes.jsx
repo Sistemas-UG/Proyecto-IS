@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useState } from "react";
 import jsPDF from "jspdf";
 import {
@@ -12,6 +11,7 @@ import {
   Inbox,
   X,
   Eye,
+  Zap,
 } from "lucide-react";
 import AppShell, { TopBar } from "../components/AppShell";
 import { api } from "../lib/api";
@@ -59,21 +59,29 @@ export default function Reportes() {
     );
   }, [insights, query]);
 
+  // --- CÁLCULOS DINÁMICOS DE KPIS Y REPORTES ---
   const totalHoras = useMemo(
     () =>
-      insights.reduce(
-        (acc, i) => acc + (Number(i.ahorroEstimadoHoras) || 0),
-        0
-      ),
+      insights.reduce((acc, i) => {
+        const val = Number(i.ahorroEstimadoHoras ?? i.ahorro_estimado_horas) || 0;
+        return acc + val;
+      }, 0),
     [insights]
   );
+
+  const promedioHoras = useMemo(() => {
+    if (!insights.length) return 0;
+    return (totalHoras / insights.length).toFixed(1);
+  }, [insights, totalHoras]);
 
   const ultimo = useMemo(() => {
     if (!insights.length) return null;
 
-    return [...insights].sort(
-      (a, b) => new Date(b.generatedEn) - new Date(a.generatedEn)
-    )[0];
+    return [...insights].sort((a, b) => {
+      const fechaA = new Date(a.generatedEn || a.created_at || 0).getTime();
+      const fechaB = new Date(b.generatedEn || b.created_at || 0).getTime();
+      return fechaB - fechaA;
+    })[0];
   }, [insights]);
 
   // Genera un PDF profesional con secciones, colores y paginación.
@@ -116,8 +124,8 @@ export default function Reportes() {
         .replace(/\*\*(.*?)\*\*/g, "$1")
         .replace(/__(.*?)__/g, "$1")
         .replace(/\*(.*?)\*/g, "$1")
-        .replace(/`([^`]+)`/g, "$1")
-        .replace(/~~(.*?)~~/g, "$1")
+        .replace(/`([^`]+)`/g, "\$1")
+        .replace(/~~(.*?)~~/g, "\$1")
         .trim();
 
     const textoAjustado = (texto, ancho) =>
@@ -227,15 +235,16 @@ export default function Reportes() {
       doc.setTextColor(...muted);
       doc.text("AHORRO ESTIMADO", mitad + 13, tarjetaY + 18);
 
-      const ahorro = Number(insight.ahorroEstimadoHoras);
+      const ahorroVal = insight.ahorroEstimadoHoras ?? insight.ahorro_estimado_horas;
+      const ahorro = Number(ahorroVal);
 
       doc.setFontSize(14);
       doc.setTextColor(...blue);
 
       if (
-        insight.ahorroEstimadoHoras !== null &&
-        insight.ahorroEstimadoHoras !== undefined &&
-        insight.ahorroEstimadoHoras !== "" &&
+        ahorroVal !== null &&
+        ahorroVal !== undefined &&
+        ahorroVal !== "" &&
         Number.isFinite(ahorro)
       ) {
         doc.text(`${ahorro} horas`, mitad + 13, tarjetaY + 39);
@@ -365,7 +374,7 @@ export default function Reportes() {
     lineas.forEach((lineaOriginal) => {
       const linea = lineaOriginal.trim();
 
-      if (!linea || /^-{3,}$/.test(linea) || /^\*{3,}$/.test(linea)) {
+      if (!linea || /^-{3,}$/.test(linea) \vert{}\vert{} /^\*{3,}$/.test(linea)) {
         vaciarParrafo();
         return;
       }
@@ -376,7 +385,7 @@ export default function Reportes() {
         return;
       }
 
-      if (/^(\*\*|__)\s*.+\s*(\*\*|__)$/.test(linea)) {
+      if (/^(\*\*|__)\s*.+\s*(\*\*|__)\$/.test(linea)) {
         vaciarParrafo();
         dibujarSeccion(linea);
         return;
@@ -401,7 +410,7 @@ export default function Reportes() {
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
+      .replace(/^-+|-+\$/g, "")
       .slice(0, 60);
 
     return {
@@ -450,38 +459,64 @@ export default function Reportes() {
         subtitle="Reportes de eficiencia generados por IA a partir de tus flujos, guardados automáticamente."
       />
 
-      <div className="flex-1 overflow-auto p-6 md:p-8 w-full max-w-5xl mx-auto font-body">
-        {/* Resumen */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-          <div className="bg-white dark:bg-navy border border-border dark:border-navyCard rounded-2xl p-5 transition-colors">
+      <div className="flex-1 overflow-auto p-6 md:p-8 w-full max-w-6xl mx-auto font-body">
+        {/* --- TARJETAS DE RESUMEN EJECUTIVO (4 COLUMNAS) --- */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* Card 1: Reportes Generados */}
+          <div className="bg-white dark:bg-navy border border-border dark:border-navyCard rounded-2xl p-5 shadow-sm transition-all hover:border-blue/40">
             <div className="flex items-center gap-2 text-muted dark:text-faint text-xs font-semibold font-body mb-2">
-              <Sparkles size={14} className="text-blue" />
+              <Sparkles size={14} className="text-blue-500" />
               Reportes generados
             </div>
             <p className="text-2xl font-bold font-display text-ink dark:text-white">
               {insights.length}
             </p>
-          </div>
-
-          <div className="bg-white dark:bg-navy border border-border dark:border-navyCard rounded-2xl p-5 transition-colors">
-            <div className="flex items-center gap-2 text-muted dark:text-faint text-xs font-semibold font-body mb-2">
-              <TrendingUp size={14} className="text-green dark:text-emerald-400" />
-              Horas ahorradas (estimado)
-            </div>
-            <p className="text-2xl font-bold font-display text-ink dark:text-white">
-              {totalHoras}h
+            <p className="text-[11px] text-muted dark:text-faint mt-1 font-body">
+              Almacenados en el sistema
             </p>
           </div>
 
-          <div className="bg-white dark:bg-navy border border-border dark:border-navyCard rounded-2xl p-5 transition-colors">
+          {/* Card 2: Horas Ahorradas (Total Acumulado) */}
+          <div className="bg-white dark:bg-navy border border-border dark:border-navyCard rounded-2xl p-5 shadow-sm transition-all hover:border-emerald-500/40">
             <div className="flex items-center gap-2 text-muted dark:text-faint text-xs font-semibold font-body mb-2">
-              <Clock size={14} className="text-blue" />
+              <TrendingUp size={14} className="text-emerald-500" />
+              Horas ahorradas totales
+            </div>
+            <p className="text-2xl font-bold font-display text-ink dark:text-white">
+              {totalHoras} hrs
+            </p>
+            <p className="text-[11px] text-emerald-500 font-medium mt-1 font-body">
+              Optimizaciones IA aplicadas
+            </p>
+          </div>
+
+          {/* Card 3: Impacto Promedio por Flujo (NUEVO) */}
+          <div className="bg-white dark:bg-navy border border-border dark:border-navyCard rounded-2xl p-5 shadow-sm transition-all hover:border-amber-500/40">
+            <div className="flex items-center gap-2 text-muted dark:text-faint text-xs font-semibold font-body mb-2">
+              <Zap size={14} className="text-amber-500" />
+              Promedio por proceso
+            </div>
+            <p className="text-2xl font-bold font-display text-ink dark:text-white">
+              {promedioHoras} hrs
+            </p>
+            <p className="text-[11px] text-muted dark:text-faint mt-1 font-body">
+              Ahorro estimado medio
+            </p>
+          </div>
+
+          {/* Card 4: Último generado */}
+          <div className="bg-white dark:bg-navy border border-border dark:border-navyCard rounded-2xl p-5 shadow-sm transition-all hover:border-indigo-500/40">
+            <div className="flex items-center gap-2 text-muted dark:text-faint text-xs font-semibold font-body mb-2">
+              <Clock size={14} className="text-indigo-500" />
               Último generado
             </div>
-            <p className="text-sm font-semibold text-ink dark:text-white truncate">
+            <p className="text-sm font-bold text-ink dark:text-white truncate mt-1">
               {ultimo
-                ? new Date(ultimo.generatedEn).toLocaleDateString("es-GT")
+                ? new Date(ultimo.generatedEn || ultimo.created_at || Date.now()).toLocaleDateString("es-GT")
                 : "—"}
+            </p>
+            <p className="text-[11px] text-muted dark:text-faint truncate mt-1 font-body">
+              {ultimo ? (ultimo.titulo || "Flujo sin nombre") : "Sin actividad reciente"}
             </p>
           </div>
         </div>
@@ -502,13 +537,13 @@ export default function Reportes() {
 
         {loading && (
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted dark:text-faint font-body">
-            <Loader2 size={16} className="animate-spin" />
-            Cargando reportes…
+            <Loader2 size={16} className="animate-spin text-blue-500" />
+            Cargando reportes de eficiencia…
           </div>
         )}
 
         {!loading && error && (
-          <p className="text-sm text-red font-body py-10 text-center">
+          <p className="text-sm text-red-500 font-body py-10 text-center">
             {error}
           </p>
         )}
@@ -558,7 +593,7 @@ export default function Reportes() {
                 <div className="flex shrink-0 items-center gap-2">
                   <button
                     onClick={descargarPDF}
-                    className="inline-flex items-center gap-2 rounded-lg bg-blue px-3 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition-colors"
                   >
                     <FileDown size={14} />
                     Descargar PDF
@@ -588,6 +623,7 @@ export default function Reportes() {
           <div className="space-y-3">
             {filtered.map((insight) => {
               const isOpen = expandedId === insight.id;
+              const ahorroVal = insight.ahorroEstimadoHoras ?? insight.ahorro_estimado_horas;
 
               return (
                 <div
@@ -615,8 +651,8 @@ export default function Reportes() {
                             ? new Date(insight.generatedEn).toLocaleString("es-GT")
                             : "Fecha no disponible"}
 
-                          {insight.ahorroEstimadoHoras != null &&
-                            ` · Ahorro estimado: ${insight.ahorroEstimadoHoras}h`}
+                          {ahorroVal != null &&
+                            ` · Ahorro estimado: ${ahorroVal}h`}
                         </p>
                       </div>
                     </button>
