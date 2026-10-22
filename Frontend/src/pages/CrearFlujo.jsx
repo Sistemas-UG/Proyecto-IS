@@ -359,7 +359,7 @@ export default function CrearFlujo() {
               )}
 
               <label className="text-xs font-semibold text-ink dark:text-white font-body mb-2">
-                1. Describe tu flujo en lenguaje natural (Español)
+                Describe tu flujo en lenguaje natural (Español)
               </label>
               <textarea
                 value={descripcion}
