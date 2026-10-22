@@ -18,6 +18,7 @@ import { api } from "../lib/api";
 
 export default function Reportes() {
   const [insights, setInsights] = useState([]);
+  const [flows, setFlows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [expandedId, setExpandedId] = useState(null);
@@ -30,10 +31,14 @@ export default function Reportes() {
     setLoading(true);
     setError("");
 
-    api
-      .getInsights()
-      .then((res) => {
-        if (!cancelled) setInsights(res.insights || []);
+    // Consultamos tanto reportes como la lista total de flujos para alinear métricas
+    Promise.all([api.getInsights(), api.getFlows()])
+      .then(([resInsights, resFlows]) => {
+        if (cancelled) return;
+        setInsights(resInsights.insights || []);
+        
+        const rawFlows = Array.isArray(resFlows) ? resFlows : resFlows?.flows || resFlows?.data || [];
+        setFlows(rawFlows);
       })
       .catch((err) => {
         if (!cancelled) {
@@ -59,20 +64,38 @@ export default function Reportes() {
     );
   }, [insights, query]);
 
-  // --- CÁLCULOS DINÁMICOS DE KPIS Y REPORTES ---
-  const totalHoras = useMemo(
-    () =>
-      insights.reduce((acc, i) => {
-        const val = Number(i.ahorroEstimadoHoras ?? i.ahorro_estimado_horas) || 0;
-        return acc + val;
-      }, 0),
-    [insights]
-  );
+  // --- CÁLCULO SINCRONIZADO DE HORAS (IGUAL QUE EN EL DASHBOARD) ---
+  const totalHoras = useMemo(() => {
+    if (!flows.length) {
+      return insights.reduce((acc, i) => acc + (Number(i.ahorroEstimadoHoras ?? i.ahorro_estimado_horas) || 0), 0);
+    }
+
+    return flows.reduce((acc, f) => {
+      let horas = 0;
+      if (typeof f.insight === "object" && f.insight?.ahorro_estimado_horas) {
+        horas = Number(f.insight.ahorro_estimado_horas) || 0;
+      } else if (f.ahorro_estimado_horas) {
+        horas = Number(f.ahorro_estimado_horas) || 0;
+      } else {
+        let stepsCount = 0;
+        let stepsData = f.pasos || f.nodes || f.steps || f.diagrama?.nodes || f.pasos_json || [];
+        if (typeof stepsData === "string") {
+          try { stepsData = JSON.parse(stepsData); } catch (e) { stepsData = []; }
+        }
+        if (Array.isArray(stepsData)) stepsCount = stepsData.length;
+        else if (typeof f.pasos === "number") stepsCount = f.pasos;
+
+        horas = Math.max(2, Math.round((stepsCount || 4) * 0.8));
+      }
+      return acc + horas;
+    }, 0);
+  }, [flows, insights]);
 
   const promedioHoras = useMemo(() => {
-    if (!insights.length) return 0;
-    return (totalHoras / insights.length).toFixed(1);
-  }, [insights, totalHoras]);
+    const totalCount = flows.length || insights.length;
+    if (!totalCount) return 0;
+    return (totalHoras / totalCount).toFixed(1);
+  }, [flows, insights, totalHoras]);
 
   const ultimo = useMemo(() => {
     if (!insights.length) return null;
@@ -476,7 +499,7 @@ export default function Reportes() {
             </p>
           </div>
 
-          {/* Card 2: Horas Ahorradas (Total Acumulado) */}
+          {/* Card 2: Horas Ahorradas Totales (100% Sincronizado con el Dashboard) */}
           <div className="bg-white dark:bg-navy border border-border dark:border-navyCard rounded-2xl p-5 shadow-sm transition-all hover:border-emerald-500/40">
             <div className="flex items-center gap-2 text-muted dark:text-faint text-xs font-semibold font-body mb-2">
               <TrendingUp size={14} className="text-emerald-500" />
@@ -486,11 +509,11 @@ export default function Reportes() {
               {totalHoras} hrs
             </p>
             <p className="text-[11px] text-emerald-500 font-medium mt-1 font-body">
-              Optimizaciones IA aplicadas
+              Suma acumulada de {flows.length} flujos
             </p>
           </div>
 
-          {/* Card 3: Impacto Promedio por Flujo (NUEVO) */}
+          {/* Card 3: Promedio por proceso */}
           <div className="bg-white dark:bg-navy border border-border dark:border-navyCard rounded-2xl p-5 shadow-sm transition-all hover:border-amber-500/40">
             <div className="flex items-center gap-2 text-muted dark:text-faint text-xs font-semibold font-body mb-2">
               <Zap size={14} className="text-amber-500" />
