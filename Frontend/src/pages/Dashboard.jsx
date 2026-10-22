@@ -33,8 +33,47 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState(null);
 
-  // --- REGLA Y CÁLCULO DINÁMICO DE KPIS ---
-  const calcularKPIs = (flowsList, baseKpis) => {
+  // Normaliza objetos de flujo para asegurar consistencia entre vistas
+  const normalizeFlow = (f) => {
+    let formattedDate = "Reciente";
+    const rawDate = f.fecha || f.created_at || f.createdAt;
+    if (rawDate) {
+      try {
+        const parsed = new Date(rawDate);
+        if (!isNaN(parsed.getTime())) {
+          formattedDate = parsed.toISOString().split("T")[0];
+        }
+      } catch (e) {
+        formattedDate = "Reciente";
+      }
+    }
+
+    let stepsData = f.pasos || f.nodes || f.steps || f.diagrama?.nodes || f.pasos_json || [];
+    if (typeof stepsData === "string") {
+      try { stepsData = JSON.parse(stepsData); } catch (e) { stepsData = []; }
+    }
+    if (!Array.isArray(stepsData) && typeof stepsData === "object" && stepsData !== null) {
+      stepsData = stepsData.nodes || stepsData.pasos || stepsData.steps || [];
+    }
+
+    const totalPasos = Array.isArray(stepsData)
+      ? stepsData.length
+      : (typeof f.pasos === "number" ? f.pasos : 0);
+
+    return {
+      id: f.id || f.id_flujo || f._id,
+      nombre: f.nombre || f.title || f.name || "Flujo sin nombre",
+      fecha: formattedDate,
+      rawTimestamp: rawDate ? new Date(rawDate).getTime() : 0,
+      pasos: totalPasos,
+      estado: f.estado || f.status || "Activo",
+      insight: f.insight || f.diagrama?.insight,
+      ahorro_estimado_horas: f.ahorro_estimado_horas
+    };
+  };
+
+  // --- REGLA Y CÁLCULO DINÁMICO DE KPIS SOBRE TODOS LOS FLUJOS ---
+  const calcularKPIs = (flowsList) => {
     const totalFlujos = flowsList.length;
     const completados = flowsList.filter((f) => f.estado === "Completado").length;
 
@@ -46,17 +85,14 @@ export default function Dashboard() {
       } else if (f.ahorro_estimado_horas) {
         horas = Number(f.ahorro_estimado_horas) || 0;
       } else {
-        // Asignación estimada según cantidad de pasos si no hay insight
-        const totalPasos = typeof f.pasos === "number" ? f.pasos : (f.nodes?.length || 4);
-        horas = Math.max(2, Math.round(totalPasos * 0.8));
+        horas = Math.max(2, Math.round((f.pasos || 4) * 0.8));
       }
       return acc + horas;
     }, 0);
 
-    // 2. Regla para Score de Optimización (0 - 100%):
-    // Formula: Base 70% + (Proporción completados * 20%) + (Factor volumen flujos * 10%)
+    // 2. Score de Optimización
     const scoreCalc = totalFlujos > 0
-      ? Math.min(100, Math.round(70 + (completados / totalFlujos) * 20 + Math.min(totalFlujos * 2, 10)))
+      ? Math.min(100, Math.round(70 + (completados / totalFlujos) * 20 + Math.min(totalFlujos * 1.5, 10)))
       : 85;
 
     return {
@@ -83,12 +119,18 @@ export default function Dashboard() {
     setLoading(true);
     setError("");
 
-    Promise.all([api.getKpis(), api.getRecentFlows()])
+    // Usamos api.getFlows() para traer TODOS los flujos reales de la BD
+    Promise.all([api.getKpis(), api.getFlows()])
       .then(([kpisRes, flowsRes]) => {
         if (cancelled) return;
-        const list = Array.isArray(flowsRes) ? flowsRes : flowsRes?.flows || [];
-        setFlows(list);
-        setKpis(calcularKPIs(list, kpisRes?.kpis));
+        const rawList = Array.isArray(flowsRes) ? flowsRes : flowsRes?.flows || flowsRes?.data || [];
+        const normalized = rawList.map(normalizeFlow);
+        
+        // Ordenamos por fecha descendente (más recientes primero)
+        normalized.sort((a, b) => b.rawTimestamp - a.rawTimestamp);
+
+        setFlows(normalized);
+        setKpis(calcularKPIs(normalized));
       })
       .catch((err) => !cancelled && setError(err.message))
       .finally(() => !cancelled && setLoading(false));
@@ -106,7 +148,7 @@ export default function Dashboard() {
       await api.deleteFlow(flow.id);
       const updatedList = flows.filter((item) => item.id !== flow.id);
       setFlows(updatedList);
-      setKpis((prev) => calcularKPIs(updatedList, prev));
+      setKpis(calcularKPIs(updatedList));
     } catch (err) {
       setError(err.message || "No se pudo eliminar el flujo.");
     } finally {
@@ -161,23 +203,23 @@ export default function Dashboard() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* --- LISTA DE MIS FLUJOS --- */}
+          {/* --- LISTA DE MIS FLUJOS RECIENTES (Muestra los primeros 5 más recientes del total) --- */}
           <Card className="lg:col-span-2 p-6 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-sm font-semibold font-display text-slate-900 dark:text-white">Mis Flujos Recientes</h2>
               <Link to="/flujos" className="text-xs font-semibold text-blue-600 dark:text-blue-400 font-body flex items-center gap-1 hover:underline">
-                Ver todos <ChevronRight size={13} />
+                Ver todos ({flows.length}) <ChevronRight size={13} />
               </Link>
             </div>
 
             <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800/60">
-              {flows.map((f) => (
+              {flows.slice(0, 5).map((f) => (
                 <div key={f.id} className="flex items-center justify-between py-3.5 group">
                   <div className="flex items-center gap-3">
                     <button
                       type="button"
                       onClick={() => navigate(`/flujos/${f.id}`)}
-                      className="text-left font-body group-hover:text-blue-500 transition-colors"
+                      className="text-left font-body group-hover:text-blue-500 transition-colors cursor-pointer"
                     >
                       <p className="text-sm font-semibold text-slate-900 dark:text-white font-body">{f.nombre}</p>
                       <p className="text-xs text-slate-500 dark:text-slate-400 font-body">{f.fecha} · {f.pasos || 0} pasos</p>
@@ -196,7 +238,7 @@ export default function Dashboard() {
                       disabled={deletingId === f.id}
                       title="Eliminar flujo"
                       aria-label={`Eliminar ${f.nombre}`}
-                      className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+                      className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 transition-colors cursor-pointer"
                     >
                       {deletingId === f.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                     </button>
@@ -210,13 +252,11 @@ export default function Dashboard() {
             </div>
           </Card>
 
-          {/* --- TARJETA SUGERENCIA IA MEJORADA --- */}
+          {/* --- TARJETA SUGERENCIA IA --- */}
           <Card className="p-6 relative overflow-hidden border border-blue-500/30 dark:border-blue-500/30 shadow-xl rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white flex flex-col justify-between">
-            {/* Destello sutil en el fondo */}
             <div className="absolute -top-10 -right-10 w-36 h-36 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
             <div>
-              {/* Encabezado e Indicador */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
@@ -231,7 +271,6 @@ export default function Dashboard() {
                 </span>
               </div>
 
-              {/* Mensaje principal */}
               <div className="mb-5 space-y-2">
                 <h3 className="text-sm font-semibold text-white font-display">
                   Cuello de botella en "Revisión de RRHH"
@@ -241,7 +280,6 @@ export default function Dashboard() {
                 </p>
               </div>
 
-              {/* Métrica de Impacto */}
               <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 backdrop-blur-md mb-6">
                 <div className="flex items-center gap-2">
                   <Zap size={15} className="text-emerald-400" />
@@ -253,7 +291,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Botón de Acción */}
             <Link
               to="/flujos/nuevo"
               className="w-full inline-flex items-center justify-center gap-2 text-xs font-semibold text-white rounded-xl px-4 py-3 transition-all duration-200 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] shadow-lg shadow-blue-600/30 font-body group"
