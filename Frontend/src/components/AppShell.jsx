@@ -1,13 +1,18 @@
+import { useState, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, Workflow, PlusCircle, BarChart3, Settings, LogOut, Bell,
+  LayoutDashboard,
+  Workflow,
+  PlusCircle,
+  BarChart3,
+  Settings,
+  LogOut,
+  Bell,
+  Menu,
 } from "lucide-react";
 import { Logo, Avatar } from "./ui";
 import { useAuth } from "../lib/AuthContext";
 
-// adminOnly: true -> solo se muestra si el usuario logueado tiene rol "admin".
-// Un usuario normal solo consulta flujos, no los crea (ver App.jsx ProtectedRoute
-// para el bloqueo real por si intenta entrar directo por URL).
 const NAV = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/flujos", icon: Workflow, label: "Mis Flujos" },
@@ -35,7 +40,7 @@ export const TopBar = ({ title, subtitle, right }) => {
       <div className="flex items-center gap-4">
         {right}
         <Bell size={18} className="text-muted dark:text-faint cursor-pointer hover:text-ink dark:hover:text-white transition-colors" />
-        <Avatar initials={initialsFromName(user?.name)} src={avatarUrl} size={34} />
+        <Avatar initials={initialsFromName(user?.name || user?.username)} src={avatarUrl} size={34} />
       </div>
     </div>
   );
@@ -44,6 +49,19 @@ export const TopBar = ({ title, subtitle, right }) => {
 export default function AppShell({ children }) {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
+
+  // Estado para la barra lateral (mantiene preferencia al navegar o recargar)
+  const [collapsed, setCollapsed] = useState(() => {
+    return localStorage.getItem("smartflow_sidebar_collapsed") === "true";
+  });
+
+  const toggleSidebar = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("smartflow_sidebar_collapsed", String(next));
+      return next;
+    });
+  };
 
   const handleLogout = () => {
     logout();
@@ -54,40 +72,68 @@ export default function AppShell({ children }) {
 
   return (
     <div className="w-full min-h-screen flex bg-bg dark:bg-navyDeep font-body transition-colors">
+      {/* Sidebar Colapsable */}
       <aside
-        className="w-[220px] shrink-0 flex flex-col justify-between py-6 px-4"
+        className={`shrink-0 flex flex-col justify-between py-6 px-3 transition-all duration-300 ease-in-out relative z-20 ${
+          collapsed ? "w-[68px]" : "w-[220px]"
+        }`}
         style={{ background: "#0F1B33" }}
       >
         <div>
-          <div className="px-1 mb-8"><Logo light /></div>
+          {/* Encabezado con Logo y Botón de 3 Líneas */}
+          <div className={`flex items-center mb-8 ${collapsed ? "justify-center flex-col gap-3" : "justify-between px-1"}`}>
+            {!collapsed && <Logo light />}
+            
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              title={collapsed ? "Expandir menú" : "Ocultar menú"}
+              className="p-1.5 rounded-lg text-faint hover:text-white hover:bg-[rgba(255,255,255,0.08)] transition-colors cursor-pointer"
+            >
+              <Menu size={18} />
+            </button>
+          </div>
+
+          {/* Menú de Opciones */}
           <nav className="flex flex-col gap-1">
             {visibleNav.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
+                title={collapsed ? item.label : undefined}
                 className={({ isActive }) =>
                   `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-body transition-colors ${
                     isActive ? "bg-[rgba(47,111,237,0.18)] text-white font-semibold" : "text-faint hover:text-white"
-                  }`
+                  } ${collapsed ? "justify-center px-0" : ""}`
                 }
               >
-                <item.icon size={16} />
-                {item.label}
+                <item.icon size={18} className="shrink-0" />
+                {!collapsed && <span className="truncate">{item.label}</span>}
               </NavLink>
             ))}
           </nav>
         </div>
+
+        {/* Footer / Logout */}
         <div>
           <div className="h-px mb-4" style={{ background: "rgba(255,255,255,0.08)" }} />
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-faint font-body cursor-pointer hover:text-white"
+            title={collapsed ? "Cerrar sesión" : undefined}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-faint font-body cursor-pointer hover:text-white ${
+              collapsed ? "justify-center px-0" : ""
+            }`}
           >
-            <LogOut size={16} /> Cerrar sesión
+            <LogOut size={18} className="shrink-0" />
+            {!collapsed && <span className="truncate">Cerrar sesión</span>}
           </button>
         </div>
       </aside>
-      <div className="flex-1 flex flex-col min-w-0 bg-bg dark:bg-navyDeep transition-colors">{children}</div>
+
+      {/* Contenido Principal */}
+      <div className="flex-1 flex flex-col min-w-0 bg-bg dark:bg-navyDeep transition-colors overflow-hidden">
+        {children}
+      </div>
     </div>
   );
 }
