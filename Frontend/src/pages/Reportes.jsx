@@ -374,7 +374,7 @@ export default function Reportes() {
     lineas.forEach((lineaOriginal) => {
       const linea = lineaOriginal.trim();
 
-      if (!linea || /^-{3,}$/.test(linea) \vert{}\vert{} /^\*{3,}$/.test(linea)) {
+      if (!linea || /^-{3,}$/.test(linea) || /^\*{3,}$/.test(linea)) {
         vaciarParrafo();
         return;
       }

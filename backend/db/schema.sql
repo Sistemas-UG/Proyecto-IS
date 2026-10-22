@@ -210,6 +210,20 @@ CREATE TABLE insights_ia (
 CREATE INDEX idx_insights_ia_organizacion ON insights_ia(organizacion_id, generated_en DESC);
 CREATE INDEX idx_insights_ia_flujo ON insights_ia(flujo_id);
 
+
+DROP TABLE IF EXISTS password_reset_tokens CASCADE;
+
+CREATE TABLE password_reset_tokens (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  token_hash  VARCHAR(255) NOT NULL,
+  expires_at  TIMESTAMP NOT NULL,
+  creado_en   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_password_reset_tokens_hash ON password_reset_tokens(token_hash);
+CREATE INDEX idx_password_reset_tokens_user ON password_reset_tokens(user_id);
+
 -- ---------------------------------------------------------------------
 -- KPIs del Dashboard: se CALCULAN, no se guardan en una tabla estática
 -- ---------------------------------------------------------------------
