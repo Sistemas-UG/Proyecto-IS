@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard,
-  Workflow,
+  LayoutGrid, // Nuevo icono para Dashboard
+  GitFork,    // Nuevo icono para Mis Flujos
   PlusCircle,
   BarChart3,
   Settings,
@@ -14,8 +14,8 @@ import { Logo, Avatar } from "./ui";
 import { useAuth } from "../lib/AuthContext";
 
 const NAV = [
-  { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/flujos", icon: Workflow, label: "Mis Flujos" },
+  { to: "/dashboard", icon: LayoutGrid, label: "Dashboard" },
+  { to: "/flujos", icon: GitFork, label: "Mis Flujos" },
   { to: "/flujos/nuevo", icon: PlusCircle, label: "Crear Nuevo", adminOnly: true },
   { to: "/reportes", icon: BarChart3, label: "Reportes" },
   { to: "/configuracion", icon: Settings, label: "Configuración" },
@@ -79,18 +79,18 @@ export default function AppShell({ children }) {
         }`}
       >
         <div>
-          {/* Encabezado con Logo y Botón de 3 Líneas */}
-          <div className={`flex items-center mb-8 ${collapsed ? "justify-center flex-col gap-3" : "justify-between px-1"}`}>
-            {!collapsed && <Logo />}
-
+          {/* Encabezado: Botón de 3 Líneas a la izquierda + Logo */}
+          <div className={`flex items-center mb-8 gap-3 ${collapsed ? "justify-center flex-col" : "justify-start px-1"}`}>
             <button
               type="button"
               onClick={toggleSidebar}
               title={collapsed ? "Expandir menú" : "Ocultar menú"}
-              className="p-1.5 rounded-lg text-muted dark:text-faint hover:text-ink dark:hover:text-white hover:bg-bg dark:hover:bg-navyCard transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-muted dark:text-faint hover:text-ink dark:hover:text-white hover:bg-bg dark:hover:bg-navyCard transition-colors cursor-pointer shrink-0"
             >
               <Menu size={18} />
             </button>
+
+            {!collapsed && <Logo />}
           </div>
 
           {/* Menú de Opciones */}
