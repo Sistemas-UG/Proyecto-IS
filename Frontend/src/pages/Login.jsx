@@ -155,7 +155,7 @@ export default function Login() {
 
       {/* Derecha: centra la tarjeta en el espacio restante, para que quede simétrica */}
       <div className="relative z-10 flex-1 flex items-center justify-center p-5 lg:p-10">
-        <div className="w-full max-w-md bg-white dark:bg-navyCard rounded-3xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 dark:border dark:border-white/10 p-10 transition-colors">
+        <div className="w-full max-w-md lg:translate-x-10 xl:translate-x-16 bg-white dark:bg-navyCard rounded-3xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 dark:border dark:border-white/10 p-10 transition-colors">
           <div className="lg:hidden flex justify-center mb-6">
             <Logo />
           </div>
