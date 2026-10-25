@@ -1,16 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Sparkles,
-  TrendingUp, 
-  Clock, 
-  Gauge, 
-  ChevronRight, 
-  Loader2, 
-  Trash2, 
-  Zap, 
+  TrendingUp,
+  Clock,
+  Gauge,
+  ChevronRight,
+  Loader2,
+  Trash2,
+  Zap,
   ArrowRight,
-  CheckCircle2
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import AppShell, { TopBar } from "../components/AppShell";
 import { Card, Pill } from "../components/ui";
@@ -24,7 +25,26 @@ const KPI_META = {
 };
 
 const MS_POR_DIA = 1000 * 60 * 60 * 24;
-const DIAS_PARA_ALERTA = 14; // a partir de cuántos días activo se resalta en ámbar
+const DIAS_PARA_ALERTA = 7; // A partir de 7 días sin completarse se considera prioridad
+
+// Conversor universal de fechas a milisegundos (Soporta ISO, YYYY-MM-DD y DD/MM/YYYY)
+const parseDateToMs = (dateStr) => {
+  if (!dateStr) return 0;
+  if (typeof dateStr === "number") return dateStr;
+
+  let parsed = new Date(dateStr).getTime();
+  if (!isNaN(parsed) && parsed > 0) return parsed;
+
+  if (typeof dateStr === "string" && dateStr.includes("/")) {
+    const parts = dateStr.split("/");
+    if (parts.length === 3) {
+      const isoFormatted = `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+      parsed = new Date(isoFormatted).getTime();
+      if (!isNaN(parsed)) return parsed;
+    }
+  }
+  return 0;
+};
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -35,19 +55,16 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState(null);
 
-  // Normaliza objetos de flujo para asegurar consistencia entre vistas
+  // Normaliza objetos de flujo asegurando parseo correcto de fechas y pasos
   const normalizeFlow = (f) => {
-    let formattedDate = "Reciente";
     const rawDate = f.fecha || f.created_at || f.createdAt;
-    if (rawDate) {
-      try {
-        const parsed = new Date(rawDate);
-        if (!isNaN(parsed.getTime())) {
-          formattedDate = parsed.toISOString().split("T")[0];
-        }
-      } catch (e) {
-        formattedDate = "Reciente";
-      }
+    const timestamp = parseDateToMs(rawDate);
+
+    let formattedDate = "Reciente";
+    if (timestamp > 0) {
+      formattedDate = new Date(timestamp).toISOString().split("T")[0];
+    } else if (typeof rawDate === "string" && rawDate.trim()) {
+      formattedDate = rawDate;
     }
 
     let stepsData = f.pasos || f.nodes || f.steps || f.diagrama?.nodes || f.pasos_json || [];
@@ -66,20 +83,20 @@ export default function Dashboard() {
       id: f.id || f.id_flujo || f._id,
       nombre: f.nombre || f.title || f.name || "Flujo sin nombre",
       fecha: formattedDate,
-      rawTimestamp: rawDate ? new Date(rawDate).getTime() : 0,
+      rawTimestamp: timestamp,
       pasos: totalPasos,
       estado: f.estado || f.status || "Activo",
       insight: f.insight || f.diagrama?.insight,
-      ahorro_estimado_horas: f.ahorro_estimado_horas
+      ahorro_estimado_horas: f.ahorro_estimado_horas,
     };
   };
 
-  // --- REGLA Y CÁLCULO DINÁMICO DE KPIS SOBRE TODOS LOS FLUJOS ---
+  // CÁLCULO DINÁMICO DE KPIS
   const calcularKPIs = (flowsList) => {
     const totalFlujos = flowsList.length;
     const completados = flowsList.filter((f) => f.estado === "Completado").length;
+    const activos = totalFlujos - completados;
 
-    // 1. Suma real del tiempo ahorrado acumulado en horas
     const horasTotales = flowsList.reduce((acc, f) => {
       let horas = 0;
       if (typeof f.insight === "object" && f.insight?.ahorro_estimado_horas) {
@@ -92,7 +109,6 @@ export default function Dashboard() {
       return acc + horas;
     }, 0);
 
-    // 2. Score de Optimización
     const scoreCalc = totalFlujos > 0
       ? Math.min(100, Math.round(70 + (completados / totalFlujos) * 20 + Math.min(totalFlujos * 1.5, 10)))
       : 85;
@@ -101,7 +117,7 @@ export default function Dashboard() {
       flujosActivos: {
         label: "Flujos en sistema",
         value: totalFlujos,
-        delta: `${completados} completados / ${totalFlujos - completados} activos`,
+        delta: `${completados} completados / ${activos} activos`,
       },
       tiempoAhorrado: {
         label: "Tiempo ahorrado total",
@@ -111,7 +127,7 @@ export default function Dashboard() {
       scoreOptimizacion: {
         label: "Score de optimización",
         value: `${scoreCalc}%`,
-        delta: totalFlujos > 0 ? `${completados} de ${totalFlujos} procesos eficientes` : "Salud del sistema optima",
+        delta: totalFlujos > 0 ? `${completados} de ${totalFlujos} procesos eficientes` : "Salud del sistema óptima",
       },
     };
   };
@@ -121,14 +137,12 @@ export default function Dashboard() {
     setLoading(true);
     setError("");
 
-    // Usamos api.getFlows() para traer TODOS los flujos reales de la BD
     Promise.all([api.getKpis(), api.getFlows()])
       .then(([kpisRes, flowsRes]) => {
         if (cancelled) return;
         const rawList = Array.isArray(flowsRes) ? flowsRes : flowsRes?.flows || flowsRes?.data || [];
         const normalized = rawList.map(normalizeFlow);
-        
-        // Ordenamos por fecha descendente (más recientes primero)
+
         normalized.sort((a, b) => b.rawTimestamp - a.rawTimestamp);
 
         setFlows(normalized);
@@ -158,18 +172,29 @@ export default function Dashboard() {
     }
   };
 
-  // --- FLUJOS QUE NECESITAN ATENCIÓN ---
-  // Se calcula con los mismos flujos ya cargados (sin llamada nueva al backend):
-  // los que siguen "Activo", del más antiguo al más nuevo, máximo 3.
-  // Se ignoran los que no traen fecha de creación, porque no se pueden medir.
-  const flujosAtencion = flows
-    .filter((f) => f.estado === "Activo" && f.rawTimestamp > 0)
-    .sort((a, b) => a.rawTimestamp - b.rawTimestamp)
-    .slice(0, 3)
-    .map((f) => ({
-      ...f,
-      diasActivo: Math.max(0, Math.floor((Date.now() - f.rawTimestamp) / MS_POR_DIA)),
-    }));
+  // CÁLCULO REAL: FLUJOS QUE NECESITAN ATENCIÓN
+  const flujosAtencion = useMemo(() => {
+    const ahora = Date.now();
+    return flows
+      .filter((f) => f.estado === "Activo")
+      .map((f) => {
+        const msDiferencia = f.rawTimestamp > 0 ? ahora - f.rawTimestamp : 0;
+        const dias = Math.max(0, Math.floor(msDiferencia / MS_POR_DIA));
+        return {
+          ...f,
+          diasActivo: dias,
+        };
+      })
+      .sort((a, b) => {
+        // 1. Prioriza los que llevan más días activos
+        if (b.diasActivo !== a.diasActivo) {
+          return b.diasActivo - a.diasActivo;
+        }
+        // 2. A igualdad de días, ordena por complejidad (número de pasos)
+        return b.pasos - a.pasos;
+      })
+      .slice(0, 3);
+  }, [flows]);
 
   const textoDiasActivo = (dias) => {
     if (dias === 0) return "Activo desde hoy";
@@ -180,82 +205,83 @@ export default function Dashboard() {
   return (
     <AppShell>
       <TopBar
-        title={`¡Bienvenido/a, ${user?.username || "usuario"}! 👋`}
+        title={`¡Bienvenido/a, ${user?.username || user?.name || "usuario"}! 👋`}
         subtitle="Aquí tienes el resumen de la actividad de tus procesos."
       />
-      
-      <div className="flex-1 overflow-auto p-6 md:p-8 font-body max-w-7xl mx-auto w-full">
+
+      {/* Contenedor Fijo Ajustado al Viewport (Sin Scrollbar Externa) */}
+      <div className="h-[calc(100vh-73px)] flex flex-col justify-between overflow-hidden p-4 md:p-5 max-w-7xl mx-auto w-full font-body box-border">
         {loading && (
-          <div className="flex items-center gap-2 text-xs text-slate-400 font-body mb-6">
+          <div className="flex items-center gap-2 text-xs text-slate-400 font-body mb-2">
             <Loader2 size={14} className="animate-spin text-blue-500" /> Cargando datos actualizados del backend...
           </div>
         )}
-        
-        {error && <p className="text-sm text-red-500 font-body mb-6">Error: {error}</p>}
+
+        {error && <p className="text-xs text-red-500 font-body mb-2">Error: {error}</p>}
 
         {/* --- TARJETAS DE KPIS --- */}
         {kpis && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 shrink-0">
             {Object.entries(kpis).map(([key, k]) => {
               const meta = KPI_META[key] || { label: key, icon: Gauge, tone: "text-blue-500" };
               return (
-                <Card key={key} className="p-5 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md">
-                  <div className="flex items-center justify-between mb-2">
+                <Card key={key} className="p-4 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md">
+                  <div className="flex items-center justify-between mb-1.5">
                     <p className="text-xs font-medium text-slate-500 dark:text-slate-400 font-body">{meta.label}</p>
-                    <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800/60">
-                      <meta.icon size={16} className={meta.tone} />
+                    <div className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/60">
+                      <meta.icon size={15} className={meta.tone} />
                     </div>
                   </div>
-                  <p className={`text-2xl font-bold font-display text-slate-900 dark:text-white`}>{k.value}</p>
-                  <p className="text-xs text-slate-400 font-body mt-1">{k.delta}</p>
+                  <p className="text-2xl font-bold font-display text-slate-900 dark:text-white">{k.value}</p>
+                  <p className="text-[11px] text-slate-400 font-body mt-0.5">{k.delta}</p>
                 </Card>
               );
             })}
           </div>
         )}
 
-        <div className="relative grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Formas decorativas de fondo */}
-          <div className="absolute -bottom-10 -left-16 w-72 h-72 bg-indigo-500/10 dark:bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-16 -right-10 w-80 h-80 bg-blue-500/10 dark:bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
-          {/* --- LISTA DE MIS FLUJOS RECIENTES (Muestra los primeros 5 más recientes del total) --- */}
-          <Card className="relative z-10 lg:col-span-2 p-6 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-sm font-semibold font-display text-slate-900 dark:text-white">Mis Flujos Recientes</h2>
+        {/* --- SECCIÓN PRINCIPAL --- */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0 overflow-hidden">
+          {/* COLUMNA IZQUIERDA: Mis Flujos Recientes */}
+          <Card className="lg:col-span-2 p-4 md:p-5 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md flex flex-col justify-between min-h-0 overflow-hidden">
+            <div className="flex items-center justify-between mb-3 shrink-0">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white font-display">
+                Mis Flujos Recientes
+              </h2>
               <Link to="/flujos" className="text-xs font-semibold text-blue-600 dark:text-blue-400 font-body flex items-center gap-1 hover:underline">
                 Ver todos ({flows.length}) <ChevronRight size={13} />
               </Link>
             </div>
 
-            <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800/60">
+            <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 pr-1">
               {flows.slice(0, 5).map((f) => (
-                <div key={f.id} className="flex items-center justify-between py-3.5 group">
-                  <div className="flex items-center gap-3">
+                <div key={f.id} className="flex items-center justify-between py-2.5 group">
+                  <div className="flex items-center gap-3 min-w-0">
                     <button
                       type="button"
                       onClick={() => navigate(`/flujos/${f.id}`)}
-                      className="text-left font-body group-hover:text-blue-500 transition-colors cursor-pointer"
+                      className="text-left font-body group-hover:text-blue-500 transition-colors cursor-pointer truncate"
                     >
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white font-body">{f.nombre}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-body">{f.fecha} · {f.pasos || 0} pasos</p>
+                      <p className="text-xs font-semibold text-slate-900 dark:text-white font-body truncate">{f.nombre}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-body">{f.fecha} · {f.pasos || 0} pasos</p>
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 shrink-0">
                     <Pill tone={f.estado === "Completado" ? "blue" : "green"}>
                       {f.estado === "Completado" && <CheckCircle2 size={11} className="inline mr-1" />}
                       {f.estado || "Activo"}
                     </Pill>
-                    
+
                     <button
                       type="button"
                       onClick={() => handleDelete(f)}
                       disabled={deletingId === f.id}
                       title="Eliminar flujo"
                       aria-label={`Eliminar ${f.nombre}`}
-                      className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 transition-colors cursor-pointer"
+                      className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 transition-colors cursor-pointer"
                     >
-                      {deletingId === f.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                      {deletingId === f.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                     </button>
                   </div>
                 </div>
@@ -267,40 +293,38 @@ export default function Dashboard() {
             </div>
           </Card>
 
-          {/* --- COLUMNA DERECHA: IA Insight + Flujos que necesitan atención --- */}
-          <div className="relative z-10 self-start flex flex-col gap-6">
-            {/* --- TARJETA SUGERENCIA IA --- */}
-            <Card className="relative p-5 overflow-hidden border border-blue-200 dark:border-blue-500/30 shadow-md dark:shadow-xl rounded-2xl bg-gradient-to-br from-blue-50 via-indigo-50 to-white dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white flex flex-col gap-4 transition-colors">
-              <div className="absolute -top-10 -right-10 w-28 h-28 bg-blue-400/10 dark:bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-
+          {/* COLUMNA DERECHA: IA Insight + Flujos que necesitan atención */}
+          <div className="flex flex-col gap-4 min-h-0 justify-between overflow-hidden">
+            {/* TARJETA SUGERENCIA IA */}
+            <Card className="relative p-4 overflow-hidden border border-blue-200 dark:border-blue-500/30 shadow-sm rounded-2xl bg-gradient-to-br from-blue-50 via-indigo-50 to-white dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white flex flex-col justify-between shrink-0">
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-xl bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30">
-                      <Sparkles size={14} />
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <div className="p-1 rounded-lg bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30">
+                      <Sparkles size={13} />
                     </div>
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 font-body">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 font-body">
                       IA Insight
                     </span>
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 font-mono">
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 font-mono">
                     Oportunidad
                   </span>
                 </div>
 
-                <h3 className="text-xs font-semibold text-slate-900 dark:text-white font-display mb-1.5">
+                <h3 className="text-xs font-semibold text-slate-900 dark:text-white font-display mb-1">
                   Cuello de botella en "Revisión de RRHH"
                 </h3>
-                <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 font-body mb-3">
-                  Este paso toma un promedio de <span className="text-amber-600 dark:text-amber-400 font-semibold">72 horas</span>. Automatizar la validación de días con la nómina acelerará el cierre.
+                <p className="text-[10px] leading-relaxed text-slate-600 dark:text-slate-300 font-body mb-2">
+                  Este paso toma un promedio de <span className="text-amber-600 dark:text-amber-400 font-semibold">72 horas</span>. Automatizar la validación acelerará el cierre.
                 </p>
 
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/70 dark:bg-white/5 border border-blue-100 dark:border-white/10">
+                <div className="flex items-center justify-between p-2 rounded-xl bg-white/70 dark:bg-white/5 border border-blue-100 dark:border-white/10 mb-2">
                   <div className="flex items-center gap-1.5">
-                    <Zap size={13} className="text-emerald-600 dark:text-emerald-400" />
-                    <span className="text-[11px] text-slate-600 dark:text-slate-300 font-body font-medium">Ahorro estimado</span>
+                    <Zap size={12} className="text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-[10px] text-slate-600 dark:text-slate-300 font-body font-medium">Ahorro estimado</span>
                   </div>
-                  <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
                     -48 horas
                   </span>
                 </div>
@@ -308,61 +332,63 @@ export default function Dashboard() {
 
               <Link
                 to="/flujos/nuevo"
-                className="w-full inline-flex items-center justify-center gap-2 text-xs font-semibold text-white rounded-xl px-4 py-2.5 transition-all duration-200 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] shadow-md shadow-blue-600/20 font-body group"
+                className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white rounded-xl px-3 py-2 transition-all duration-200 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] shadow-sm font-body group"
               >
                 <span>Optimizar con IA</span>
-                <ArrowRight size={13} className="group-hover:translate-x-1 transition-transform" />
+                <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </Card>
 
-            {/* --- TARJETA FLUJOS QUE NECESITAN ATENCIÓN --- */}
-            <Card className="p-5 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="p-1.5 rounded-xl bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30">
-                  <Clock size={14} />
+            {/* TARJETA FLUJOS QUE NECESITAN ATENCIÓN */}
+            <Card className="p-4 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md flex flex-col justify-between flex-1 min-h-0 overflow-hidden">
+              <div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <div className="p-1 rounded-lg bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30">
+                    <Clock size={13} />
+                  </div>
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white font-display">
+                    Flujos que necesitan atención
+                  </h2>
                 </div>
-                <h2 className="text-sm font-semibold font-display text-slate-900 dark:text-white">
-                  Flujos que necesitan atención
-                </h2>
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-body mb-3">
-                Los que llevan más tiempo activos.
-              </p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-body mb-2">
+                  Procesos activos con mayor tiempo pendiente.
+                </p>
 
-              {flujosAtencion.length > 0 ? (
-                <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {flujosAtencion.map((f) => (
-                    <div key={f.id} className="flex items-center justify-between gap-3 py-2.5">
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-slate-900 dark:text-white font-body truncate">
-                          {f.nombre}
-                        </p>
-                        <p
-                          className={`text-[11px] font-body ${
-                            f.diasActivo >= DIAS_PARA_ALERTA
-                              ? "text-amber-600 dark:text-amber-400 font-medium"
-                              : "text-slate-500 dark:text-slate-400"
-                          }`}
-                        >
-                          {textoDiasActivo(f.diasActivo)}
-                        </p>
-                      </div>
-                      <Link
-                        to={`/flujos/${f.id}`}
-                        className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 rounded-lg px-2.5 py-1 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors font-body group"
-                      >
-                        Revisar
-                        <ArrowRight size={11} className="group-hover:translate-x-0.5 transition-transform" />
-                      </Link>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 font-body py-3">
-                  <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-                  {loading ? "Calculando..." : "Todo al día: no hay flujos activos pendientes."}
-                </div>
-              )}
+                {flujosAtencion.length > 0 ? (
+                  <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800/60 overflow-y-auto max-h-[160px] pr-1">
+                    {flujosAtencion.map((f) => {
+                      const esAlerta = f.diasActivo >= DIAS_PARA_ALERTA;
+                      return (
+                        <div key={f.id} className="flex items-center justify-between gap-2 py-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-slate-900 dark:text-white font-body truncate">
+                              {f.nombre}
+                            </p>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              {esAlerta && <AlertTriangle size={11} className="text-amber-500 shrink-0" />}
+                              <p className={`text-[10px] font-body ${esAlerta ? "text-amber-600 dark:text-amber-400 font-semibold" : "text-slate-500 dark:text-slate-400"}`}>
+                                {textoDiasActivo(f.diasActivo)}
+                              </p>
+                            </div>
+                          </div>
+                          <Link
+                            to={`/flujos/${f.id}`}
+                            className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 rounded-lg px-2 py-1 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors font-body group"
+                          >
+                            Revisar
+                            <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform" />
+                          </Link>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400 font-body py-2">
+                    <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+                    {loading ? "Calculando..." : "Todo al día: no hay flujos pendientes de revisión."}
+                  </div>
+                )}
+              </div>
             </Card>
           </div>
         </div>
