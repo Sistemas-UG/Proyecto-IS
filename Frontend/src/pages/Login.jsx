@@ -99,7 +99,7 @@ export default function Login() {
 
   return (
     <div
-      className="w-full min-h-screen relative flex items-center justify-center lg:justify-start p-5 lg:p-10 font-body bg-cover bg-center transition-colors"
+      className="w-full min-h-screen relative flex flex-col lg:flex-row font-body bg-cover bg-center transition-colors"
       style={{ backgroundImage: `url(${isDark ? loginBgDark : loginBgLight})` }}
     >
       {/* Overlay para legibilidad del texto sobre la imagen */}
@@ -117,7 +117,7 @@ export default function Login() {
       </button>
 
       {/* Izquierda: Branding sobre la imagen */}
-      <div className="hidden lg:flex flex-col justify-between absolute inset-y-0 left-0 w-[52%] p-12 xl:p-14 z-10">
+      <div className="hidden lg:flex lg:w-[48%] xl:w-[46%] shrink-0 flex-col justify-between p-12 xl:p-16 z-10">
         <Logo light />
 
         <div className="max-w-md" style={{ textShadow: "0 2px 10px rgba(0,0,0,0.45)" }}>
@@ -153,20 +153,21 @@ export default function Login() {
         </button>
       </div>
 
-      {/* Tarjeta flotante: Formulario */}
-      <div className="relative z-10 w-full max-w-md lg:ml-[46%] bg-white dark:bg-navy rounded-3xl shadow-2xl ring-1 ring-black/5 dark:ring-white/5 p-10 transition-colors">
-        <div className="lg:hidden flex justify-center mb-6">
-          <Logo />
-        </div>
-        <div className="w-full">
-          <h2 className="text-2xl font-bold text-center text-ink dark:text-white font-display mb-1">
-            Bienvenido a SMARTFLOW
-          </h2>
-          <p className="text-sm font-medium text-center text-muted dark:text-faint font-body mb-7">
-            {forgotMode ? "Te enviaremos un enlace para crear una contraseña nueva." : isRegistering
-              ? "Ingresa tus datos para registrarte en el sistema."
-              : "Inicia sesión para continuar"}
-          </p>
+      {/* Derecha: centra la tarjeta en el espacio restante, para que quede simétrica */}
+      <div className="relative z-10 flex-1 flex items-center justify-center p-5 lg:p-10">
+        <div className="w-full max-w-md bg-white dark:bg-navyCard rounded-3xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 dark:border dark:border-white/10 p-10 transition-colors">
+          <div className="lg:hidden flex justify-center mb-6">
+            <Logo />
+          </div>
+          <div className="w-full">
+            <h2 className="text-2xl font-bold text-center text-ink dark:text-white font-display mb-1">
+              Bienvenido a SMARTFLOW
+            </h2>
+            <p className="text-sm font-medium text-center text-muted dark:text-faint font-body mb-7">
+              {forgotMode ? "Te enviaremos un enlace para crear una contraseña nueva." : isRegistering
+                ? "Ingresa tus datos para registrarte en el sistema."
+                : "Inicia sesión para continuar"}
+            </p>
 
           {forgotMode ? (
             <form onSubmit={handleRequestReset} className="space-y-4">
@@ -295,6 +296,7 @@ export default function Login() {
             </button>
           </div>}
         </div>
+      </div>
       </div>
     </div>
   );
