@@ -1,4 +1,21 @@
-import { Zap } from "lucide-react";
+// Marca del logo: molinete de 3 pétalos en degradado azul-morado,
+// recreado como SVG propio (sin depender de ningún ícono de terceros).
+const LogoMark = ({ size = 32 }) => (
+  <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="smartflowLogoGrad" x1="2" y1="2" x2="30" y2="30" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#6366F1" />
+        <stop offset="55%" stopColor="#5B5FEF" />
+        <stop offset="100%" stopColor="#9333EA" />
+      </linearGradient>
+    </defs>
+    <g fill="url(#smartflowLogoGrad)">
+      <path d="M16 3C16 3 21.5 8.4 21.5 13.2C21.5 16.07 19.07 18.4 16 18.4C12.93 18.4 10.5 16.07 10.5 13.2C10.5 8.4 16 3 16 3Z" transform="rotate(0 16 16)" />
+      <path d="M16 3C16 3 21.5 8.4 21.5 13.2C21.5 16.07 19.07 18.4 16 18.4C12.93 18.4 10.5 16.07 10.5 13.2C10.5 8.4 16 3 16 3Z" transform="rotate(120 16 16)" opacity="0.85" />
+      <path d="M16 3C16 3 21.5 8.4 21.5 13.2C21.5 16.07 19.07 18.4 16 18.4C12.93 18.4 10.5 16.07 10.5 13.2C10.5 8.4 16 3 16 3Z" transform="rotate(240 16 16)" opacity="0.7" />
+    </g>
+  </svg>
+);
 
 const TONE = {
   green: "bg-greenSoft text-green dark:bg-green/20 dark:text-emerald-400",
@@ -41,11 +58,15 @@ export const Avatar = ({ initials, src, tone = "bg-blue", size = 34, className =
 
 export const Logo = ({ light }) => (
   <div className="flex items-center gap-2">
-    <div className="flex items-center justify-center rounded-lg bg-blue" style={{ width: 30, height: 30 }}>
-      <Zap size={16} color="#fff" strokeWidth={2.5} />
-    </div>
-    <span className={`text-[15px] font-semibold tracking-tight font-display ${light ? "text-white" : "text-ink dark:text-white"}`}>
-      SmartFlow <span className="text-blue">AI</span>
+    <LogoMark size={32} />
+    <span className={`text-[16px] font-bold tracking-tight font-display ${light ? "text-white" : "text-ink dark:text-white"}`}>
+      SmartFlow{" "}
+      <span
+        className="bg-clip-text text-transparent"
+        style={{ backgroundImage: "linear-gradient(90deg, #5B5FEF, #8B5CF6)" }}
+      >
+        AI
+      </span>
     </span>
   </div>
 );

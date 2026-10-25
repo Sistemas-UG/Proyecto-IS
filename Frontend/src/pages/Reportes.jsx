@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import jsPDF from "jspdf";
 import {
   Sparkles,
   Loader2,
@@ -15,6 +14,7 @@ import {
 } from "lucide-react";
 import AppShell, { TopBar } from "../components/AppShell";
 import { api } from "../lib/api";
+import { crearReportePDF } from "../lib/reportPdf";
 
 export default function Reportes() {
   const [insights, setInsights] = useState([]);
@@ -24,6 +24,7 @@ export default function Reportes() {
   const [expandedId, setExpandedId] = useState(null);
   const [query, setQuery] = useState("");
   const [preview, setPreview] = useState(null);
+  const [generandoId, setGenerandoId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,354 +108,37 @@ export default function Reportes() {
     })[0];
   }, [insights]);
 
-  // Genera un PDF profesional con secciones, colores y paginación.
-  const crearPDF = (insight) => {
-    const doc = new jsPDF({
-      orientation: "portrait",
-      unit: "pt",
-      format: "letter",
+  // El PDF lo arma el generador compartido (lib/reportPdf.js), el mismo que usa
+  // Crear Flujo, así el usuario ve exactamente lo mismo en ambos lados.
+  // Si el reporte está ligado a un flujo guardado, se dibuja el diagrama al final.
+  const previsualizarPDF = async (insight) => {
+    setGenerandoId(insight.id);
+
+    let flow = null;
+    const flujoId = insight.flujoId ?? insight.flujo_id;
+    if (flujoId) {
+      try {
+        const res = await api.getFlow(flujoId);
+        if (res?.flow?.nodes?.length) flow = { nodes: res.flow.nodes, edges: res.flow.edges || [] };
+      } catch {
+        // Si el flujo ya no existe o no se puede leer, el PDF sale sin diagrama.
+      }
+    }
+
+    const { blob, filename } = crearReportePDF({
+      titulo: insight.titulo || "Flujo sin nombre",
+      texto: insight.reporteTexto,
+      generatedEn: insight.generatedEn,
+      ahorroHoras: insight.ahorroEstimadoHoras ?? insight.ahorro_estimado_horas,
+      flow,
     });
-
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-
-    const margin = 48;
-    const contentWidth = pageWidth - margin * 2;
-    const bottomLimit = pageHeight - 62;
-
-    const navy = [15, 32, 60];
-    const blue = [37, 99, 235];
-    const muted = [100, 116, 139];
-    const ink = [30, 41, 59];
-    const lightBlue = [239, 246, 255];
-    const border = [226, 232, 240];
-
-    const titulo = insight.titulo || "Flujo sin nombre";
-
-    const fechaValida = insight.generatedEn
-      ? new Date(insight.generatedEn)
-      : new Date();
-
-    const fecha = Number.isNaN(fechaValida.getTime())
-      ? new Date().toLocaleString("es-GT")
-      : fechaValida.toLocaleString("es-GT");
-
-    let y = 0;
-
-    const limpiarTexto = (texto) =>
-      String(texto || "")
-        .replace(/\r/g, "")
-        .replace(/\*\*(.*?)\*\*/g, "$1")
-        .replace(/__(.*?)__/g, "$1")
-        .replace(/\*(.*?)\*/g, "$1")
-        .replace(/`([^`]+)`/g, "\$1")
-        .replace(/~~(.*?)~~/g, "\$1")
-        .trim();
-
-    const textoAjustado = (texto, ancho) =>
-      doc.splitTextToSize(String(texto || ""), ancho);
-
-    const dibujarEncabezado = () => {
-      doc.setFillColor(...navy);
-      doc.rect(0, 0, pageWidth, 112, "F");
-
-      doc.setFillColor(...blue);
-      doc.roundedRect(margin, 22, 36, 36, 8, 8, "F");
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(13);
-      doc.setTextColor(255, 255, 255);
-      doc.text("SF", margin + 8, 45);
-
-      doc.setFontSize(9);
-      doc.setTextColor(191, 219, 254);
-      doc.text("SMARTFLOW AI", margin + 47, 31);
-
-      doc.setFontSize(18);
-      doc.setTextColor(255, 255, 255);
-      doc.text("Informe de eficiencia", margin, 79);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(219, 234, 254);
-
-      const tituloLineas = textoAjustado(titulo, contentWidth);
-      doc.text(tituloLineas.slice(0, 2), margin, 96);
-
-      y = 135;
-    };
-
-    const comprobarEspacio = (altoNecesario) => {
-      if (y + altoNecesario > bottomLimit) {
-        doc.addPage();
-        dibujarEncabezado();
-      }
-    };
-
-    const dibujarPiePagina = () => {
-      const totalPaginas = doc.internal.getNumberOfPages();
-
-      for (let pagina = 1; pagina <= totalPaginas; pagina++) {
-        doc.setPage(pagina);
-
-        doc.setDrawColor(...border);
-        doc.setLineWidth(0.7);
-        doc.line(
-          margin,
-          pageHeight - 42,
-          pageWidth - margin,
-          pageHeight - 42
-        );
-
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        doc.setTextColor(...muted);
-
-        doc.text("SmartFlow AI | Informe de eficiencia", margin, pageHeight - 25);
-
-        doc.text(
-          `Página ${pagina} de ${totalPaginas}`,
-          pageWidth - margin,
-          pageHeight - 25,
-          { align: "right" }
-        );
-      }
-    };
-
-    const dibujarTarjetaInformacion = () => {
-      const tarjetaY = y;
-      const tarjetaH = 54;
-
-      doc.setFillColor(...lightBlue);
-      doc.roundedRect(
-        margin,
-        tarjetaY,
-        contentWidth,
-        tarjetaH,
-        8,
-        8,
-        "F"
-      );
-
-      const mitad = margin + contentWidth / 2;
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.setTextColor(...muted);
-      doc.text("FECHA DE GENERACIÓN", margin + 13, tarjetaY + 18);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(...navy);
-
-      const fechaLineas = textoAjustado(fecha, contentWidth / 2 - 25);
-      doc.text(fechaLineas.slice(0, 2), margin + 13, tarjetaY + 34);
-
-      doc.setDrawColor(...border);
-      doc.line(mitad, tarjetaY + 9, mitad, tarjetaY + tarjetaH - 9);
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.setTextColor(...muted);
-      doc.text("AHORRO ESTIMADO", mitad + 13, tarjetaY + 18);
-
-      const ahorroVal = insight.ahorroEstimadoHoras ?? insight.ahorro_estimado_horas;
-      const ahorro = Number(ahorroVal);
-
-      doc.setFontSize(14);
-      doc.setTextColor(...blue);
-
-      if (
-        ahorroVal !== null &&
-        ahorroVal !== undefined &&
-        ahorroVal !== "" &&
-        Number.isFinite(ahorro)
-      ) {
-        doc.text(`${ahorro} horas`, mitad + 13, tarjetaY + 39);
-      } else {
-        doc.setFontSize(10);
-        doc.text("No especificado", mitad + 13, tarjetaY + 37);
-      }
-
-      y += tarjetaH + 25;
-    };
-
-    const dibujarSeccion = (texto) => {
-      const tituloSeccion = limpiarTexto(texto);
-
-      if (!tituloSeccion) return;
-
-      const lineas = textoAjustado(tituloSeccion, contentWidth - 22);
-      const alto = Math.max(29, lineas.length * 14 + 13);
-
-      comprobarEspacio(alto + 8);
-
-      doc.setFillColor(...lightBlue);
-      doc.roundedRect(margin, y, contentWidth, alto, 5, 5, "F");
-
-      doc.setFillColor(...blue);
-      doc.roundedRect(margin, y, 4, alto, 2, 2, "F");
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10.5);
-      doc.setTextColor(...navy);
-
-      doc.text(lineas, margin + 13, y + 18);
-
-      y += alto + 12;
-    };
-
-    const dibujarParrafo = (texto) => {
-      const contenido = limpiarTexto(texto);
-
-      if (!contenido) return;
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9.5);
-
-      const lineas = textoAjustado(contenido, contentWidth);
-      const altoLinea = 14;
-
-      let indice = 0;
-
-      while (indice < lineas.length) {
-        const espacioDisponible = bottomLimit - y;
-        const lineasDisponibles = Math.floor(
-          espacioDisponible / altoLinea
-        );
-
-        if (lineasDisponibles < 1) {
-          doc.addPage();
-          dibujarEncabezado();
-          continue;
-        }
-
-        const fragmento = lineas.slice(
-          indice,
-          indice + lineasDisponibles
-        );
-
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9.5);
-        doc.setTextColor(...ink);
-        doc.text(fragmento, margin, y);
-
-        y += fragmento.length * altoLinea;
-        indice += fragmento.length;
-
-        if (indice < lineas.length) {
-          doc.addPage();
-          dibujarEncabezado();
-        }
-      }
-
-      y += 9;
-    };
-
-    const dibujarViñeta = (texto) => {
-      const contenido = limpiarTexto(
-        texto.replace(/^[-*•]\s*/, "")
-      );
-
-      if (!contenido) return;
-
-      const lineas = textoAjustado(contenido, contentWidth - 22);
-      const altoLinea = 14;
-
-      comprobarEspacio(lineas.length * altoLinea + 10);
-
-      doc.setFillColor(...blue);
-      doc.circle(margin + 5, y - 3, 2.2, "F");
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9.5);
-      doc.setTextColor(...ink);
-
-      doc.text(lineas, margin + 17, y);
-
-      y += lineas.length * altoLinea + 8;
-    };
-
-    // Encabezado y resumen de datos.
-    dibujarEncabezado();
-    dibujarTarjetaInformacion();
-
-    // Reconoce encabezados Markdown, listas y párrafos.
-    const lineas = String(insight.reporteTexto || "")
-      .replace(/\r\n/g, "\n")
-      .replace(/\r/g, "\n")
-      .split("\n");
-
-    let parrafo = [];
-
-    const vaciarParrafo = () => {
-      if (parrafo.length > 0) {
-        dibujarParrafo(parrafo.join(" "));
-        parrafo = [];
-      }
-    };
-
-    lineas.forEach((lineaOriginal) => {
-      const linea = lineaOriginal.trim();
-
-      if (!linea || /^-{3,}$/.test(linea) || /^\*{3,}$/.test(linea)) {
-        vaciarParrafo();
-        return;
-      }
-
-      if (/^#{1,6}\s+/.test(linea)) {
-        vaciarParrafo();
-        dibujarSeccion(linea.replace(/^#{1,6}\s+/, ""));
-        return;
-      }
-
-      if (/^(\*\*|__)\s*.+\s*(\*\*|__)\$/.test(linea)) {
-        vaciarParrafo();
-        dibujarSeccion(linea);
-        return;
-      }
-
-      if (/^[-*•]\s+/.test(linea)) {
-        vaciarParrafo();
-        dibujarViñeta(linea);
-        return;
-      }
-
-      parrafo.push(limpiarTexto(linea));
-    });
-
-    vaciarParrafo();
-
-    // Numera todas las páginas al terminar de generar el contenido.
-    dibujarPiePagina();
-
-    const nombreSeguro = titulo
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+\$/g, "")
-      .slice(0, 60);
-
-    return {
-      blob: doc.output("blob"),
-      filename: `reporte-eficiencia-${nombreSeguro || "flujo"}.pdf`,
-    };
-  };
-
-  const previsualizarPDF = (insight) => {
-    const { blob, filename } = crearPDF(insight);
     const url = URL.createObjectURL(blob);
 
     setPreview((current) => {
       if (current?.url) URL.revokeObjectURL(current.url);
-
-      return {
-        url,
-        filename,
-        titulo: insight.titulo || "Reporte de eficiencia",
-      };
+      return { url, filename, titulo: insight.titulo || "Reporte de eficiencia" };
     });
+    setGenerandoId(null);
   };
 
   const descargarPDF = () => {
@@ -683,10 +367,15 @@ export default function Reportes() {
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => previsualizarPDF(insight)}
+                        disabled={generandoId === insight.id}
                         title="Vista previa del PDF"
-                        className="flex items-center gap-1.5 text-xs font-medium text-ink dark:text-white border border-border dark:border-navyCard rounded-lg px-3 py-2 font-body bg-bg dark:bg-navyDeep hover:border-blue transition-colors cursor-pointer"
+                        className="flex items-center gap-1.5 disabled:opacity-70 text-xs font-medium text-ink dark:text-white border border-border dark:border-navyCard rounded-lg px-3 py-2 font-body bg-bg dark:bg-navyDeep hover:border-blue transition-colors cursor-pointer"
                       >
-                        <Eye size={13} className="text-blue" />
+                        {generandoId === insight.id ? (
+                          <Loader2 size={13} className="animate-spin text-blue" />
+                        ) : (
+                          <Eye size={13} className="text-blue" />
+                        )}
                         <span className="hidden sm:inline">Vista previa</span>
                       </button>
 

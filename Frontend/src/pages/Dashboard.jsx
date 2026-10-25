@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { 
-  PlusCircle, 
-  Sparkles, 
+import {
+  Sparkles,
   TrendingUp, 
   Clock, 
   Gauge, 
@@ -174,37 +173,31 @@ export default function Dashboard() {
 
         {/* --- TARJETAS DE KPIS --- */}
         {kpis && (
-          <div className="flex flex-col md:flex-row items-stretch justify-between gap-5 mb-8">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 flex-1">
-              {Object.entries(kpis).map(([key, k]) => {
-                const meta = KPI_META[key] || { label: key, icon: Gauge, tone: "text-blue-500" };
-                return (
-                  <Card key={key} className="p-5 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400 font-body">{meta.label}</p>
-                      <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800/60">
-                        <meta.icon size={16} className={meta.tone} />
-                      </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
+            {Object.entries(kpis).map(([key, k]) => {
+              const meta = KPI_META[key] || { label: key, icon: Gauge, tone: "text-blue-500" };
+              return (
+                <Card key={key} className="p-5 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 font-body">{meta.label}</p>
+                    <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800/60">
+                      <meta.icon size={16} className={meta.tone} />
                     </div>
-                    <p className={`text-2xl font-bold font-display text-slate-900 dark:text-white`}>{k.value}</p>
-                    <p className="text-xs text-slate-400 font-body mt-1">{k.delta}</p>
-                  </Card>
-                );
-              })}
-            </div>
-
-            <Link
-              to="/flujos/nuevo"
-              className="shrink-0 rounded-2xl text-sm font-semibold text-white px-5 py-3 flex items-center justify-center gap-2 font-body bg-blue-600 hover:bg-blue-500 transition-all duration-200 shadow-lg shadow-blue-500/20 active:scale-[0.98] h-auto"
-            >
-              <PlusCircle size={18} /> Nuevo Flujo
-            </Link>
+                  </div>
+                  <p className={`text-2xl font-bold font-display text-slate-900 dark:text-white`}>{k.value}</p>
+                  <p className="text-xs text-slate-400 font-body mt-1">{k.delta}</p>
+                </Card>
+              );
+            })}
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="relative grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Formas decorativas de fondo */}
+          <div className="absolute -bottom-10 -left-16 w-72 h-72 bg-indigo-500/10 dark:bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-16 -right-10 w-80 h-80 bg-blue-500/10 dark:bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
           {/* --- LISTA DE MIS FLUJOS RECIENTES (Muestra los primeros 5 más recientes del total) --- */}
-          <Card className="lg:col-span-2 p-6 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md">
+          <Card className="relative z-10 lg:col-span-2 p-6 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-sm font-semibold font-display text-slate-900 dark:text-white">Mis Flujos Recientes</h2>
               <Link to="/flujos" className="text-xs font-semibold text-blue-600 dark:text-blue-400 font-body flex items-center gap-1 hover:underline">
@@ -253,7 +246,7 @@ export default function Dashboard() {
           </Card>
 
           {/* --- TARJETA SUGERENCIA IA --- */}
-          <Card className="p-6 relative overflow-hidden border border-blue-500/30 dark:border-blue-500/30 shadow-xl rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white flex flex-col justify-between">
+          <Card className="relative z-10 p-6 overflow-hidden border border-blue-500/30 dark:border-blue-500/30 shadow-xl rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white flex flex-col justify-between">
             <div className="absolute -top-10 -right-10 w-36 h-36 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
             <div>

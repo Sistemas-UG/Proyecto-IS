@@ -74,21 +74,20 @@ export default function AppShell({ children }) {
     <div className="w-full min-h-screen flex bg-bg dark:bg-navyDeep font-body transition-colors">
       {/* Sidebar Colapsable */}
       <aside
-        className={`shrink-0 flex flex-col justify-between py-6 px-3 transition-all duration-300 ease-in-out relative z-20 ${
+        className={`shrink-0 flex flex-col justify-between py-6 px-3 transition-all duration-300 ease-in-out relative z-20 bg-white dark:bg-navy border-r border-border dark:border-navyCard ${
           collapsed ? "w-[68px]" : "w-[220px]"
         }`}
-        style={{ background: "#0F1B33" }}
       >
         <div>
           {/* Encabezado con Logo y Botón de 3 Líneas */}
           <div className={`flex items-center mb-8 ${collapsed ? "justify-center flex-col gap-3" : "justify-between px-1"}`}>
-            {!collapsed && <Logo light />}
-            
+            {!collapsed && <Logo />}
+
             <button
               type="button"
               onClick={toggleSidebar}
               title={collapsed ? "Expandir menú" : "Ocultar menú"}
-              className="p-1.5 rounded-lg text-faint hover:text-white hover:bg-[rgba(255,255,255,0.08)] transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-muted dark:text-faint hover:text-ink dark:hover:text-white hover:bg-bg dark:hover:bg-navyCard transition-colors cursor-pointer"
             >
               <Menu size={18} />
             </button>
@@ -102,8 +101,10 @@ export default function AppShell({ children }) {
                 to={item.to}
                 title={collapsed ? item.label : undefined}
                 className={({ isActive }) =>
-                  `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-body transition-colors ${
-                    isActive ? "bg-[rgba(47,111,237,0.18)] text-white font-semibold" : "text-faint hover:text-white"
+                  `flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-body transition-colors ${
+                    isActive
+                      ? "bg-blueSoft dark:bg-blue/20 text-blue dark:text-blue-400 font-semibold"
+                      : "text-muted dark:text-faint hover:text-ink dark:hover:text-white hover:bg-bg dark:hover:bg-navyCard"
                   } ${collapsed ? "justify-center px-0" : ""}`
                 }
               >
@@ -116,11 +117,11 @@ export default function AppShell({ children }) {
 
         {/* Footer / Logout */}
         <div>
-          <div className="h-px mb-4" style={{ background: "rgba(255,255,255,0.08)" }} />
+          <div className="h-px mb-4 bg-border dark:bg-navyCard" />
           <button
             onClick={handleLogout}
             title={collapsed ? "Cerrar sesión" : undefined}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-faint font-body cursor-pointer hover:text-white ${
+            className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-muted dark:text-faint font-body cursor-pointer hover:text-ink dark:hover:text-white ${
               collapsed ? "justify-center px-0" : ""
             }`}
           >

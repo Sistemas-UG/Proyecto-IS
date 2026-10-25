@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Mail, Lock, User, AtSign, ArrowRight, Loader2, AlertCircle, CheckCircle2, Sun, Moon, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, User, AtSign, ArrowRight, Loader2, AlertCircle, CheckCircle2, Sun, Moon, Eye, EyeOff, TrendingUp, Users, Layers } from "lucide-react";
 import { Logo } from "../components/ui";
 import { useAuth } from "../lib/AuthContext";
 import loginBgDark from "../assets/login-bg-dark.png";
@@ -91,58 +91,92 @@ export default function Login() {
     setError(""); setResetNotice(false); setForgotMode(false); setIsRegistering(!isRegistering);
   };
 
+  const FEATURES = [
+    { icon: TrendingUp, title: "Más productividad", text: "Reduce tareas repetitivas." },
+    { icon: Users, title: "Mejores resultados", text: "Conecta personas y procesos." },
+    { icon: Layers, title: "Todo en un solo lugar", text: "Simple, intuitivo y seguro." },
+  ];
+
   return (
-    <div className="w-full min-h-screen flex bg-bg dark:bg-navyDeep transition-colors font-body">
-      {/* Izquierda: Branding */}
-      <div
-        className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 transition-colors bg-cover bg-center"
-        style={{ backgroundImage: `url(${isDark ? loginBgDark : loginBgLight})` }}
+    <div
+      className="w-full min-h-screen relative flex items-center justify-center lg:justify-start p-5 lg:p-10 font-body bg-cover bg-center transition-colors"
+      style={{ backgroundImage: `url(${isDark ? loginBgDark : loginBgLight})` }}
+    >
+      {/* Overlay para legibilidad del texto sobre la imagen */}
+      <div className="absolute inset-0 bg-gradient-to-r from-navyDeep/80 via-navyDeep/45 to-navyDeep/15 lg:to-navyDeep/5 pointer-events-none" />
+
+      {/* Botón de tema, solo en pantallas pequeñas (en grande vive abajo del panel izquierdo) */}
+      <button
+        type="button"
+        onClick={toggleTheme}
+        aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+        title={isDark ? "Modo claro" : "Modo oscuro"}
+        className="lg:hidden absolute top-5 right-5 z-20 w-10 h-10 flex items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur text-white shadow-soft hover:border-blue transition-colors cursor-pointer"
       >
-        <Logo />
-        <div className="max-w-md">
-          <span className="text-xs font-semibold tracking-wider text-blue uppercase font-body">
-            Automatización de procesos • PyMEs
-          </span>
-          <h1 className="text-3xl font-bold font-display mt-3 mb-4 leading-tight text-ink dark:text-white">
-            Diseña y automatiza procesos en minutos, no en semanas.
+        {isDark ? <Sun size={17} /> : <Moon size={17} />}
+      </button>
+
+      {/* Izquierda: Branding sobre la imagen */}
+      <div className="hidden lg:flex flex-col justify-between absolute inset-y-0 left-0 w-[52%] p-12 xl:p-14 z-10">
+        <Logo light />
+
+        <div className="max-w-md" style={{ textShadow: "0 2px 10px rgba(0,0,0,0.45)" }}>
+          <h1 className="text-4xl font-bold font-display mt-3 mb-4 leading-tight text-white">
+            Automatiza tus procesos, impulsa tu equipo
           </h1>
-          <p className="text-sm text-muted dark:text-faint leading-relaxed font-body">
-            Describe tu proceso en lenguaje natural. SmartFlow AI genera el flujo y detecta
-            cuellos de botella.
+          <p className="text-sm text-white/80 leading-relaxed font-body mb-8">
+            Crea, gestiona y optimiza tus procesos de trabajo de forma simple, rápida y eficiente.
           </p>
+          <div className="space-y-4">
+            {FEATURES.map((f) => (
+              <div key={f.title} className="flex items-start gap-3">
+                <div className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl bg-white/10 border border-white/15 text-white" style={{ textShadow: "none" }}>
+                  <f.icon size={16} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white font-display">{f.title}</p>
+                  <p className="text-xs text-white/70 font-body">{f.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
+
         <button
           type="button"
           onClick={toggleTheme}
           aria-label={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
           title={isDark ? "Modo claro" : "Modo oscuro"}
-          className="w-10 h-10 flex items-center justify-center rounded-full border border-border dark:border-navyCard bg-white/70 dark:bg-navy/70 backdrop-blur text-ink dark:text-white shadow-soft hover:border-blue transition-colors cursor-pointer self-start"
+          className="w-10 h-10 flex items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur text-white shadow-soft hover:border-blue transition-colors cursor-pointer self-start"
         >
           {isDark ? <Sun size={17} /> : <Moon size={17} />}
         </button>
       </div>
 
-      {/* Derecha: Formulario */}
-      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-8 bg-white dark:bg-navyDeep transition-colors">
-        <div className="w-full max-w-sm">
-          <h2 className="text-xl font-bold text-center text-ink dark:text-white font-display mb-1">
-            {forgotMode ? "Recuperar contraseña" : isRegistering ? "Crear una cuenta nueva" : "Bienvenido de nuevo"}
+      {/* Tarjeta flotante: Formulario */}
+      <div className="relative z-10 w-full max-w-md lg:ml-[46%] bg-white dark:bg-navy rounded-3xl shadow-2xl ring-1 ring-black/5 dark:ring-white/5 p-10 transition-colors">
+        <div className="lg:hidden flex justify-center mb-6">
+          <Logo />
+        </div>
+        <div className="w-full">
+          <h2 className="text-2xl font-bold text-center text-ink dark:text-white font-display mb-1">
+            Bienvenido a SMARTFLOW
           </h2>
-          <p className="text-xs font-medium text-center text-muted dark:text-faint font-body mb-6">
+          <p className="text-sm font-medium text-center text-muted dark:text-faint font-body mb-7">
             {forgotMode ? "Te enviaremos un enlace para crear una contraseña nueva." : isRegistering
               ? "Ingresa tus datos para registrarte en el sistema."
-              : "Accede con tu nombre de usuario o correo electrónico."}
+              : "Inicia sesión para continuar"}
           </p>
 
           {forgotMode ? (
-            <form onSubmit={handleRequestReset} className="space-y-3.5">
-              <div className="relative"><Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted dark:text-faint"/><input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Correo electrónico" className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-border dark:border-navyCard bg-bg dark:bg-navy text-ink dark:text-white outline-none focus:border-blue"/></div>
+            <form onSubmit={handleRequestReset} className="space-y-4">
+              <div className="relative"><Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted dark:text-faint"/><input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Correo electrónico" className="w-full pl-10 pr-4 py-3 text-sm rounded-xl border border-border dark:border-navyCard bg-bg dark:bg-navyDeep text-ink dark:text-white outline-none focus:border-blue"/></div>
               {resetNotice && <div role="status" className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs"><CheckCircle2 size={16}/><span>Si existe una cuenta asociada, recibirás instrucciones por correo.</span></div>}
               {error && <div role="alert" className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-xs"><AlertCircle size={16}/><span>{error}</span></div>}
               <button type="submit" disabled={submitting} className="w-full py-3 px-4 rounded-xl bg-blue hover:opacity-90 text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50">{submitting ? <Loader2 size={16} className="animate-spin"/> : <Mail size={16}/>} Enviar instrucciones</button>
               <button type="button" onClick={() => { setForgotMode(false); setError(""); setResetNotice(false); }} className="w-full text-xs text-muted dark:text-faint hover:text-blue underline">Volver al inicio de sesión</button>
             </form>
-          ) : <form onSubmit={handleSubmit} className="space-y-3.5">
+          ) : <form onSubmit={handleSubmit} className="space-y-4">
             {isRegistering && (
               <div className="relative">
                 <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted dark:text-faint" />
@@ -151,7 +185,7 @@ export default function Login() {
                   value={nombreCompleto}
                   onChange={(e) => setNombreCompleto(e.target.value)}
                   placeholder="Nombre completo"
-                  className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-border dark:border-navyCard bg-bg dark:bg-navy text-ink dark:text-white outline-none focus:border-blue transition-colors"
+                  className="w-full pl-10 pr-4 py-3 text-sm rounded-xl border border-border dark:border-navyCard bg-bg dark:bg-navyDeep text-ink dark:text-white outline-none focus:border-blue transition-colors"
                 />
               </div>
             )}
@@ -164,7 +198,7 @@ export default function Login() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s+/g, ""))}
                   placeholder="Nombre de usuario"
-                  className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-border dark:border-navyCard bg-bg dark:bg-navy text-ink dark:text-white outline-none focus:border-blue transition-colors"
+                  className="w-full pl-10 pr-4 py-3 text-sm rounded-xl border border-border dark:border-navyCard bg-bg dark:bg-navyDeep text-ink dark:text-white outline-none focus:border-blue transition-colors"
                 />
               </div>
             )}
@@ -176,7 +210,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={isRegistering ? "Correo electrónico" : "Usuario o correo electrónico"}
-                className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-border dark:border-navyCard bg-bg dark:bg-navy text-ink dark:text-white outline-none focus:border-blue transition-colors"
+                className="w-full pl-10 pr-4 py-3 text-sm rounded-xl border border-border dark:border-navyCard bg-bg dark:bg-navyDeep text-ink dark:text-white outline-none focus:border-blue transition-colors"
               />
             </div>
 
@@ -188,7 +222,7 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Contraseña"
-                className="w-full pl-10 pr-10 py-2.5 text-sm rounded-xl border border-border dark:border-navyCard bg-bg dark:bg-navy text-ink dark:text-white outline-none focus:border-blue transition-colors"
+                className="w-full pl-10 pr-10 py-3 text-sm rounded-xl border border-border dark:border-navyCard bg-bg dark:bg-navyDeep text-ink dark:text-white outline-none focus:border-blue transition-colors"
               />
               <button
                 type="button"

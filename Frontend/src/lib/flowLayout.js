@@ -24,8 +24,9 @@ export function edgeStyleForLabel(label) {
   };
 }
 
-const NODE_WIDTH = 200;
-const NODE_HEIGHT = 70;
+export const NODE_WIDTH = 200;
+export const NODE_HEIGHT = 70;
+export const RANK_SEP = 90;
 
 // Convierte nodos/edges del backend al formato de React Flow.
 // Compartido entre CrearFlujo.jsx (admin, genera con IA y/o construye a mano)
@@ -39,7 +40,7 @@ const NODE_HEIGHT = 70;
 export function layoutNodes(rawNodes, rawEdges) {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: 90 });
+  g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: RANK_SEP });
 
   rawNodes.forEach((n) => {
     g.setNode(n.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
@@ -76,4 +77,51 @@ export function layoutEdges(rawEdges) {
     ...edgeStyleForLabel(e.label),
     markerEnd: { type: MarkerType.ArrowClosed },
   }));
+}
+
+// Geometría del diagrama para exportarlo (por ejemplo al PDF del reporte).
+// Usa dagre con EXACTAMENTE los mismos parámetros que layoutNodes, así el
+// diagrama del PDF se ve igual que el de Mis Flujos / Ver Flujo.
+// Devuelve nodos con esquina superior izquierda + tamaño, y por cada conexión
+// los puntos del trazo que calcula dagre (para dibujarlas sin cruzar nodos).
+export function layoutFlowGeometry(rawNodes = [], rawEdges = []) {
+  const ids = new Set(rawNodes.map((n) => String(n.id)));
+  const g = new dagre.graphlib.Graph();
+  g.setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: RANK_SEP });
+
+  rawNodes.forEach((n) => g.setNode(String(n.id), { width: NODE_WIDTH, height: NODE_HEIGHT }));
+
+  // Solo conexiones cuyos extremos existen (dagre rompe con nodos fantasma).
+  const validEdges = rawEdges.filter((e) => ids.has(String(e.source)) && ids.has(String(e.target)));
+  validEdges.forEach((e) => g.setEdge(String(e.source), String(e.target)));
+
+  dagre.layout(g);
+
+  const nodes = rawNodes.map((n) => {
+    const pos = g.node(String(n.id));
+    return {
+      id: String(n.id),
+      label: n.label ?? n.data?.label ?? "",
+      type: n.type ?? n.data?.tipo ?? "paso",
+      x: pos.x - NODE_WIDTH / 2,
+      y: pos.y - NODE_HEIGHT / 2,
+      width: NODE_WIDTH,
+      height: NODE_HEIGHT,
+    };
+  });
+
+  const edges = validEdges.map((e, idx) => {
+    const info = g.edge(String(e.source), String(e.target));
+    return {
+      id: e.id || `e${idx}`,
+      source: String(e.source),
+      target: String(e.target),
+      label: e.label || "",
+      points: (info?.points || []).map((p) => ({ x: p.x, y: p.y })),
+    };
+  });
+
+  const graph = g.graph();
+  return { nodes, edges, width: graph.width || NODE_WIDTH, height: graph.height || NODE_HEIGHT };
 }
