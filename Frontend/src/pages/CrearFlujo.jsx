@@ -6,7 +6,7 @@ import "reactflow/dist/style.css";
 import {
   Sparkles, Lightbulb, FileText, FileDown, Loader2, CheckCircle2,
   PlayCircle, GitBranch, CircleDot, Square, Trash2, Wand2, MousePointerClick, Building2,
-  UploadCloud, X, Edit3, Eye,
+  UploadCloud, X, Edit3, Eye, ChevronDown,
 } from "lucide-react";
 import AppShell, { TopBar } from "../components/AppShell";
 import FlowZoomControls from "../components/FlowZoomControls";
@@ -86,6 +86,11 @@ export default function CrearFlujo() {
   // Vista previa del PDF en modal (en vez de un iframe fijo dentro del panel,
   // que obligaba a hacer scroll para ver el resto de las opciones).
   const [previewOpen, setPreviewOpen] = useState(false);
+  // La caja de AI Insight (Optimización + Sugerencia) podía ser muy larga y
+  // empujar todo lo de abajo, obligando a hacer scroll. Ahora arranca
+  // colapsada (solo título + ahorro estimado) y se expande si el usuario
+  // quiere leer el detalle completo.
+  const [insightOpen, setInsightOpen] = useState(false);
 
   // --- Lienzo compartido ---
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -216,6 +221,7 @@ export default function CrearFlujo() {
     setSaved(false);
     setSavedFlowId(null);
     setReportText("");
+    setInsightOpen(false);
     setError("");
     try {
       const result = await api.generateFlow(descripcion, flujoGeneral);
@@ -459,21 +465,43 @@ export default function CrearFlujo() {
 
           {error && <p className="text-xs text-red font-body mt-3">{error}</p>}
 
-          {/* Caja AI Insight */}
+          {/* Caja AI Insight: colapsada por defecto para no empujar todo
+              hacia abajo (antes mostraba siempre el texto completo). */}
           {aiResult?.insight && (
-            <div className="mt-5 rounded-xl p-3.5 bg-blueSoft dark:bg-blue/15 border border-blue/20 dark:border-blue/30 transition-colors">
-              <p className="text-xs font-semibold text-ink dark:text-white font-body mb-2 flex items-center gap-1.5">
-                <Lightbulb size={13} className="text-blue dark:text-blue-400" /> AI Insight
-              </p>
-              <p className="text-xs leading-relaxed text-muted dark:text-faint font-body mb-2">
-                <strong className="text-ink dark:text-white">Optimización:</strong> {aiResult.insight.optimizacion}
-              </p>
-              <p className="text-xs leading-relaxed text-muted dark:text-faint font-body mb-2">
-                <strong className="text-ink dark:text-white">Sugerencia:</strong> {aiResult.insight.sugerencia}
-              </p>
-              <p className="text-xs text-green dark:text-emerald-400 font-semibold font-body">
-                Ahorro estimado: {aiResult.insight.ahorro_estimado_horas} horas
-              </p>
+            <div className="mt-5 rounded-xl bg-blueSoft dark:bg-blue/15 border border-blue/20 dark:border-blue/30 transition-colors overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setInsightOpen((v) => !v)}
+                className="w-full flex items-center justify-between gap-2 p-3 text-left cursor-pointer"
+              >
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-ink dark:text-white font-body min-w-0">
+                  <Lightbulb size={13} className="text-blue dark:text-blue-400 shrink-0" />
+                  <span className="truncate">AI Insight</span>
+                </span>
+                <span className="flex items-center gap-2 shrink-0">
+                  <span className="text-[11px] text-green dark:text-emerald-400 font-semibold font-body whitespace-nowrap">
+                    -{aiResult.insight.ahorro_estimado_horas}h
+                  </span>
+                  <ChevronDown
+                    size={14}
+                    className={`text-blue dark:text-blue-400 transition-transform ${insightOpen ? "rotate-180" : ""}`}
+                  />
+                </span>
+              </button>
+
+              {insightOpen && (
+                <div className="px-3.5 pb-3.5">
+                  <p className="text-xs leading-relaxed text-muted dark:text-faint font-body mb-2">
+                    <strong className="text-ink dark:text-white">Optimización:</strong> {aiResult.insight.optimizacion}
+                  </p>
+                  <p className="text-xs leading-relaxed text-muted dark:text-faint font-body mb-2">
+                    <strong className="text-ink dark:text-white">Sugerencia:</strong> {aiResult.insight.sugerencia}
+                  </p>
+                  <p className="text-xs text-green dark:text-emerald-400 font-semibold font-body">
+                    Ahorro estimado: {aiResult.insight.ahorro_estimado_horas} horas
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
