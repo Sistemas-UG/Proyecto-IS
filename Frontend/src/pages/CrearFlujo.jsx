@@ -6,7 +6,7 @@ import "reactflow/dist/style.css";
 import {
   Sparkles, Lightbulb, FileText, FileDown, Loader2, CheckCircle2,
   PlayCircle, GitBranch, CircleDot, Square, Trash2, Wand2, MousePointerClick, Building2,
-  UploadCloud, X, Edit3,
+  UploadCloud, X, Edit3, Eye,
 } from "lucide-react";
 import AppShell, { TopBar } from "../components/AppShell";
 import FlowZoomControls from "../components/FlowZoomControls";
@@ -83,6 +83,9 @@ export default function CrearFlujo() {
   const [reportPdfUrl, setReportPdfUrl] = useState("");
   const [reportFilename, setReportFilename] = useState("");
   const [savedFlowId, setSavedFlowId] = useState(null);
+  // Vista previa del PDF en modal (en vez de un iframe fijo dentro del panel,
+  // que obligaba a hacer scroll para ver el resto de las opciones).
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   // --- Lienzo compartido ---
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -314,9 +317,9 @@ export default function CrearFlujo() {
       <TopBar title="Crear Nuevo Flujo" subtitle="Describe tu proceso con IA, constrúyelo a mano, o combina ambos." />
       <div className="flex-1 overflow-hidden flex bg-bg dark:bg-navyDeep transition-colors">
         {/* Panel izquierdo */}
-        <div className="w-[340px] shrink-0 border-r border-border dark:border-navyCard bg-white dark:bg-navy p-6 flex flex-col overflow-auto transition-colors">
+        <div className="w-[340px] shrink-0 border-r border-border dark:border-navyCard bg-white dark:bg-navy p-5 flex flex-col overflow-auto transition-colors">
           {/* Tabs de modo */}
-          <div className="flex rounded-lg border border-border dark:border-navyCard p-1 mb-5 bg-bg dark:bg-navyDeep">
+          <div className="flex rounded-lg border border-border dark:border-navyCard p-1 mb-4 bg-bg dark:bg-navyDeep">
             <button
               onClick={() => setMode("ia")}
               className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold font-body rounded-md py-2 transition-colors cursor-pointer ${
@@ -362,7 +365,7 @@ export default function CrearFlujo() {
                       </>
                     )}
                   </button>
-                  <p className="text-[11px] text-faint font-body mb-4">
+                  <p className="text-[11px] text-faint font-body mb-3">
                     La IA extrae el contenido y precarga la descripción.
                   </p>
                 </>
@@ -374,12 +377,12 @@ export default function CrearFlujo() {
               <textarea
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
-                rows={8}
-                className="w-full text-sm rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-3 text-ink dark:text-white font-body outline-none focus:border-blue resize-none mb-4 transition-colors placeholder:text-muted/60 dark:placeholder:text-faint/50"
+                rows={6}
+                className="w-full text-sm rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-3 text-ink dark:text-white font-body outline-none focus:border-blue resize-none mb-3 transition-colors placeholder:text-muted/60 dark:placeholder:text-faint/50"
                 placeholder='Ej: "Crear un flujo para solicitudes de vacaciones: el empleado envía la solicitud, el gerente la revisa, si la aprueba, RRHH verifica días restantes y da el visto bueno final. Si se rechaza en algún paso, notificar al empleado."'
               />
 
-              <label className="flex items-start gap-2 text-xs text-muted dark:text-faint font-body mb-4 cursor-pointer">
+              <label className="flex items-start gap-2 text-xs text-muted dark:text-faint font-body mb-3 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={flujoGeneral}
@@ -392,7 +395,7 @@ export default function CrearFlujo() {
               </label>
 
               {!flujoGeneral && myOrg && (
-                <div className="flex items-start gap-2 text-[11px] text-muted dark:text-faint font-body rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-3 mb-4">
+                <div className="flex items-start gap-2 text-[11px] text-muted dark:text-faint font-body rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-2.5 mb-3">
                   <Building2 size={13} className="text-blue shrink-0 mt-0.5" />
                   <span>
                     <strong className="text-ink dark:text-white">{myOrg.nombre}</strong>
@@ -418,7 +421,7 @@ export default function CrearFlujo() {
                 )}
               </button>
 
-              <p className="text-[11px] text-faint font-body mt-3">
+              <p className="text-[11px] text-faint font-body mt-2">
                 Tip: luego puedes editarlo en "Construir manual".
               </p>
             </>
@@ -427,7 +430,7 @@ export default function CrearFlujo() {
               <label className="text-xs font-semibold text-ink dark:text-white font-body mb-2">
                 Agrega nodos al lienzo
               </label>
-              <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="grid grid-cols-2 gap-2 mb-3">
                 {NODE_TYPES.map((t) => (
                   <button
                     key={t.tipo}
@@ -442,7 +445,7 @@ export default function CrearFlujo() {
               <button
                 onClick={handleDeleteSelection}
                 disabled={!hasSelection}
-                className="w-full flex items-center justify-center gap-2 text-xs font-medium text-red border border-red/30 rounded-lg px-3 py-2.5 font-body bg-redSoft dark:bg-red/10 hover:opacity-90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed mb-4 cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 text-xs font-medium text-red border border-red/30 rounded-lg px-3 py-2.5 font-body bg-redSoft dark:bg-red/10 hover:opacity-90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed mb-3 cursor-pointer"
               >
                 <Trash2 size={13} /> Eliminar seleccionado
               </button>
@@ -458,7 +461,7 @@ export default function CrearFlujo() {
 
           {/* Caja AI Insight */}
           {aiResult?.insight && (
-            <div className="mt-6 rounded-xl p-4 bg-blueSoft dark:bg-blue/15 border border-blue/20 dark:border-blue/30 transition-colors">
+            <div className="mt-5 rounded-xl p-3.5 bg-blueSoft dark:bg-blue/15 border border-blue/20 dark:border-blue/30 transition-colors">
               <p className="text-xs font-semibold text-ink dark:text-white font-body mb-2 flex items-center gap-1.5">
                 <Lightbulb size={13} className="text-blue dark:text-blue-400" /> AI Insight
               </p>
@@ -476,7 +479,7 @@ export default function CrearFlujo() {
 
           {/* Nombre + Guardar */}
           {hasNodes && (
-            <div className="mt-6">
+            <div className="mt-5">
               <p className="text-xs font-semibold text-ink dark:text-white font-body mb-2">Nombre del flujo</p>
               <input
                 value={flowName}
@@ -485,14 +488,14 @@ export default function CrearFlujo() {
                   markDirty();
                 }}
                 placeholder="Nombre del flujo"
-                className="w-full text-sm rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-2.5 text-ink dark:text-white font-body outline-none focus:border-blue mb-4 transition-colors"
+                className="w-full text-sm rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-2.5 text-ink dark:text-white font-body outline-none focus:border-blue mb-3 transition-colors"
               />
 
-              <p className="text-xs font-semibold text-ink dark:text-white font-body mb-3">Guardar flujo</p>
+              <p className="text-xs font-semibold text-ink dark:text-white font-body mb-2">Guardar flujo</p>
               <button
                 onClick={handleGuardar}
                 disabled={saving || saved}
-                className={`w-full flex items-center justify-center gap-2 text-xs font-semibold text-white rounded-lg px-3 py-2.5 font-body disabled:opacity-70 mb-4 transition-colors cursor-pointer ${
+                className={`w-full flex items-center justify-center gap-2 text-xs font-semibold text-white rounded-lg px-3 py-2.5 font-body disabled:opacity-70 mb-3 transition-colors cursor-pointer ${
                   saved ? "bg-green dark:bg-emerald-600" : "bg-blue hover:bg-blue/90"
                 }`}
               >
@@ -509,7 +512,7 @@ export default function CrearFlujo() {
                 )}
               </button>
 
-              <p className="text-xs font-semibold text-ink dark:text-white font-body mb-3">Generación de documentos</p>
+              <p className="text-xs font-semibold text-ink dark:text-white font-body mb-2">Generación de documentos</p>
               <div className="flex flex-col gap-2">
                 <button
                   onClick={handleGenerarReporte}
@@ -531,13 +534,19 @@ export default function CrearFlujo() {
                   <FileDown size={14} className="text-blue" /> Descargar PDF del Reporte
                 </button>
               </div>
+
+              {/* Antes había un iframe de 480px siempre visible acá, lo que
+                  obligaba a hacer scroll para ver el resto del panel. Ahora
+                  la vista previa vive en un modal (igual que en Reportes),
+                  y acá solo queda un botón chico. */}
               {reportText && reportPdfUrl && (
-                <div className="mt-3 overflow-hidden rounded-xl border border-border dark:border-navyCard">
-                  <div className="p-3">
-                    <span className="text-xs font-semibold text-ink dark:text-white">Vista previa del reporte PDF</span>
-                  </div>
-                  <iframe title="Vista previa del reporte PDF" src={reportPdfUrl} className="h-[480px] w-full bg-slate-100" />
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setPreviewOpen(true)}
+                  className="mt-3 w-full flex items-center justify-center gap-2 text-xs font-medium text-blue border border-blue/30 rounded-lg px-3 py-2.5 font-body bg-blueSoft dark:bg-blue/10 hover:opacity-90 transition-colors cursor-pointer"
+                >
+                  <Eye size={13} /> Ver vista previa del PDF
+                </button>
               )}
               {reportText && (
                 <p className="mt-3 text-[10px] text-green dark:text-emerald-400 font-body">
@@ -639,6 +648,50 @@ export default function CrearFlujo() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL DE VISTA PREVIA DEL PDF (igual patrón que en Reportes) --- */}
+      {previewOpen && reportPdfUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-3 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Vista previa del reporte PDF"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPreviewOpen(false);
+          }}
+        >
+          <div className="flex h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-navy shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-border dark:border-navyCard bg-white dark:bg-navy p-4">
+              <div className="min-w-0">
+                <h2 className="truncate text-sm font-semibold text-ink dark:text-white">
+                  {flowName.trim() || "Reporte de eficiencia"}
+                </h2>
+                <p className="text-xs text-muted dark:text-faint">Vista previa del PDF · Informe ejecutivo</p>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  onClick={handleDescargarPDF}
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition-colors"
+                >
+                  <FileDown size={14} />
+                  Descargar PDF
+                </button>
+
+                <button
+                  onClick={() => setPreviewOpen(false)}
+                  aria-label="Cerrar vista previa"
+                  className="rounded-lg p-2 text-muted hover:bg-bg dark:text-faint dark:hover:bg-navyDeep"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <iframe title="Vista previa del reporte PDF" src={reportPdfUrl} className="min-h-0 flex-1 bg-slate-100" />
           </div>
         </div>
       )}

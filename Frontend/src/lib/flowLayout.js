@@ -4,9 +4,18 @@ import { MarkerType } from "reactflow";
 // Clases de estilo por tipo de nodo de negocio ("inicio" | "paso" | "decision" | "fin").
 // Se usa tanto para el layout automático (flujos generados por IA) como para
 // los nodos que el usuario agrega a mano en modo manual, así ambos se ven igual.
+//
+// Alto FIJO (h-[NODE_HEIGHT]) + line-clamp-3: así el tamaño real que dibuja
+// el navegador siempre coincide con el tamaño que usamos para calcular el
+// layout (NODE_WIDTH x NODE_HEIGHT más abajo). Antes el nodo crecía con el
+// texto (sin alto fijo) y como dagre separaba los nodos asumiendo un alto
+// de 70px, una etiqueta larga hacía que la caja real fuera más alta que eso
+// y se encimara con el nodo de abajo. Con alto fijo + recorte de texto a 3
+// líneas, eso ya no puede pasar sin importar qué tan largo sea el texto.
 export function styleForTipo(tipo) {
   const base =
-    "rounded-xl border p-3 text-xs font-semibold font-body text-center w-[200px] transition-colors shadow-xs ";
+    `rounded-xl border p-2.5 text-xs font-semibold font-body text-center w-[${NODE_WIDTH}px] h-[${NODE_HEIGHT}px] ` +
+    "flex items-center justify-center leading-snug line-clamp-3 overflow-hidden transition-colors shadow-xs ";
   if (tipo === "inicio") return base + "bg-navyDeep dark:bg-blue text-white border-transparent";
   if (tipo === "fin") return base + "bg-greenSoft dark:bg-green/20 text-green dark:text-emerald-400 border-green/30 dark:border-green/40";
   if (tipo === "decision") return base + "bg-white dark:bg-navy text-ink dark:text-white border-blue dark:border-blue";
@@ -25,8 +34,16 @@ export function edgeStyleForLabel(label) {
 }
 
 export const NODE_WIDTH = 200;
-export const NODE_HEIGHT = 70;
-export const RANK_SEP = 90;
+// Antes 70: muy ajustado para etiquetas de 2-3 líneas en flujos más
+// complejos (varias decisiones encadenadas). Con 86px entran 3 líneas de
+// texto cómodas y, al ser un alto fijo (ver styleForTipo), dagre separa los
+// nodos con el tamaño real exacto.
+export const NODE_HEIGHT = 86;
+export const RANK_SEP = 110;
+// Separación horizontal entre nodos de un mismo nivel (antes 60). Con flujos
+// de muchas ramas (varias decisiones en paralelo) 60px dejaba las cajas casi
+// pegadas; con 80px queda aire incluso con 4-5 ramas lado a lado.
+export const NODE_SEP = 80;
 
 // Convierte nodos/edges del backend al formato de React Flow.
 // Compartido entre CrearFlujo.jsx (admin, genera con IA y/o construye a mano)
@@ -40,7 +57,7 @@ export const RANK_SEP = 90;
 export function layoutNodes(rawNodes, rawEdges) {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: RANK_SEP });
+  g.setGraph({ rankdir: "TB", nodesep: NODE_SEP, ranksep: RANK_SEP });
 
   rawNodes.forEach((n) => {
     g.setNode(n.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
@@ -88,7 +105,7 @@ export function layoutFlowGeometry(rawNodes = [], rawEdges = []) {
   const ids = new Set(rawNodes.map((n) => String(n.id)));
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: RANK_SEP });
+  g.setGraph({ rankdir: "TB", nodesep: NODE_SEP, ranksep: RANK_SEP });
 
   rawNodes.forEach((n) => g.setNode(String(n.id), { width: NODE_WIDTH, height: NODE_HEIGHT }));
 
