@@ -23,6 +23,9 @@ const KPI_META = {
   scoreOptimizacion: { label: "Score de optimización", icon: TrendingUp, tone: "text-amber-500" },
 };
 
+const MS_POR_DIA = 1000 * 60 * 60 * 24;
+const DIAS_PARA_ALERTA = 14; // a partir de cuántos días activo se resalta en ámbar
+
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -155,6 +158,25 @@ export default function Dashboard() {
     }
   };
 
+  // --- FLUJOS QUE NECESITAN ATENCIÓN ---
+  // Se calcula con los mismos flujos ya cargados (sin llamada nueva al backend):
+  // los que siguen "Activo", del más antiguo al más nuevo, máximo 3.
+  // Se ignoran los que no traen fecha de creación, porque no se pueden medir.
+  const flujosAtencion = flows
+    .filter((f) => f.estado === "Activo" && f.rawTimestamp > 0)
+    .sort((a, b) => a.rawTimestamp - b.rawTimestamp)
+    .slice(0, 3)
+    .map((f) => ({
+      ...f,
+      diasActivo: Math.max(0, Math.floor((Date.now() - f.rawTimestamp) / MS_POR_DIA)),
+    }));
+
+  const textoDiasActivo = (dias) => {
+    if (dias === 0) return "Activo desde hoy";
+    if (dias === 1) return "Activo hace 1 día";
+    return `Activo hace ${dias} días`;
+  };
+
   return (
     <AppShell>
       <TopBar
@@ -245,51 +267,104 @@ export default function Dashboard() {
             </div>
           </Card>
 
-          {/* --- TARJETA SUGERENCIA IA --- */}
- <Card className="relative z-10 p-5 overflow-hidden border border-blue-200 dark:border-blue-500/30 shadow-md dark:shadow-xl rounded-2xl bg-gradient-to-br from-blue-50 via-indigo-50 to-white dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white flex flex-col justify-between transition-colors">
-  <div className="absolute -top-10 -right-10 w-28 h-28 bg-blue-400/10 dark:bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+          {/* --- COLUMNA DERECHA: IA Insight + Flujos que necesitan atención --- */}
+          <div className="relative z-10 self-start flex flex-col gap-6">
+            {/* --- TARJETA SUGERENCIA IA --- */}
+            <Card className="relative p-5 overflow-hidden border border-blue-200 dark:border-blue-500/30 shadow-md dark:shadow-xl rounded-2xl bg-gradient-to-br from-blue-50 via-indigo-50 to-white dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white flex flex-col gap-4 transition-colors">
+              <div className="absolute -top-10 -right-10 w-28 h-28 bg-blue-400/10 dark:bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
-  <div>
-    <div className="flex items-center justify-between mb-3">
-      <div className="flex items-center gap-2">
-        <div className="p-1.5 rounded-xl bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30">
-          <Sparkles size={14} />
-        </div>
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 font-body">
-          IA Insight
-        </span>
-      </div>
-      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 font-mono">
-        Oportunidad
-      </span>
-    </div>
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-xl bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30">
+                      <Sparkles size={14} />
+                    </div>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 font-body">
+                      IA Insight
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 font-mono">
+                    Oportunidad
+                  </span>
+                </div>
 
-    <h3 className="text-xs font-semibold text-slate-900 dark:text-white font-display mb-1.5">
-      Cuello de botella en "Revisión de RRHH"
-    </h3>
-    <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 font-body mb-3">
-      Este paso toma un promedio de <span className="text-amber-600 dark:text-amber-400 font-semibold">72 horas</span>. Automatizar la validación de días con la nómina acelerará el cierre.
-    </p>
+                <h3 className="text-xs font-semibold text-slate-900 dark:text-white font-display mb-1.5">
+                  Cuello de botella en "Revisión de RRHH"
+                </h3>
+                <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 font-body mb-3">
+                  Este paso toma un promedio de <span className="text-amber-600 dark:text-amber-400 font-semibold">72 horas</span>. Automatizar la validación de días con la nómina acelerará el cierre.
+                </p>
 
-    <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/70 dark:bg-white/5 border border-blue-100 dark:border-white/10 mb-4">
-      <div className="flex items-center gap-1.5">
-        <Zap size={13} className="text-emerald-600 dark:text-emerald-400" />
-        <span className="text-[11px] text-slate-600 dark:text-slate-300 font-body font-medium">Ahorro estimado</span>
-      </div>
-      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
-        -48 horas
-      </span>
-    </div>
-  </div>
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/70 dark:bg-white/5 border border-blue-100 dark:border-white/10">
+                  <div className="flex items-center gap-1.5">
+                    <Zap size={13} className="text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-[11px] text-slate-600 dark:text-slate-300 font-body font-medium">Ahorro estimado</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
+                    -48 horas
+                  </span>
+                </div>
+              </div>
 
-  <Link
-    to="/flujos/nuevo"
-    className="w-full inline-flex items-center justify-center gap-2 text-xs font-semibold text-white rounded-xl px-4 py-2.5 transition-all duration-200 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] shadow-md shadow-blue-600/20 font-body group"
-  >
-    <span>Optimizar con IA</span>
-    <ArrowRight size={13} className="group-hover:translate-x-1 transition-transform" />
-  </Link>
-</Card>
+              <Link
+                to="/flujos/nuevo"
+                className="w-full inline-flex items-center justify-center gap-2 text-xs font-semibold text-white rounded-xl px-4 py-2.5 transition-all duration-200 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] shadow-md shadow-blue-600/20 font-body group"
+              >
+                <span>Optimizar con IA</span>
+                <ArrowRight size={13} className="group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </Card>
+
+            {/* --- TARJETA FLUJOS QUE NECESITAN ATENCIÓN --- */}
+            <Card className="p-5 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="p-1.5 rounded-xl bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30">
+                  <Clock size={14} />
+                </div>
+                <h2 className="text-sm font-semibold font-display text-slate-900 dark:text-white">
+                  Flujos que necesitan atención
+                </h2>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-body mb-3">
+                Los que llevan más tiempo activos.
+              </p>
+
+              {flujosAtencion.length > 0 ? (
+                <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800/60">
+                  {flujosAtencion.map((f) => (
+                    <div key={f.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-slate-900 dark:text-white font-body truncate">
+                          {f.nombre}
+                        </p>
+                        <p
+                          className={`text-[11px] font-body ${
+                            f.diasActivo >= DIAS_PARA_ALERTA
+                              ? "text-amber-600 dark:text-amber-400 font-medium"
+                              : "text-slate-500 dark:text-slate-400"
+                          }`}
+                        >
+                          {textoDiasActivo(f.diasActivo)}
+                        </p>
+                      </div>
+                      <Link
+                        to={`/flujos/${f.id}`}
+                        className="shrink-0 inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 rounded-lg px-2.5 py-1 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors font-body group"
+                      >
+                        Revisar
+                        <ArrowRight size={11} className="group-hover:translate-x-0.5 transition-transform" />
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 font-body py-3">
+                  <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
+                  {loading ? "Calculando..." : "Todo al día: no hay flujos activos pendientes."}
+                </div>
+              )}
+            </Card>
+          </div>
         </div>
       </div>
     </AppShell>
