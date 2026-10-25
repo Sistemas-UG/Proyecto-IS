@@ -130,10 +130,10 @@ export default function MisFlujos() {
     setError("");
 
     try {
-      // 1. Petición DELETE a la base de datos PostgreSQL
+      // 1. Petición DELETE a PostgreSQL
       await api.deleteFlow(flowToDelete.id);
       
-      // 2. Sincroniza estado de React y caché local para el Dashboard
+      // 2. Sincroniza estado local y caché para el Dashboard
       setFlows((current) => {
         const updated = current.filter((item) => item.id !== flowToDelete.id);
         localStorage.setItem("smartflow_cached_flows", JSON.stringify(updated));
@@ -296,7 +296,7 @@ export default function MisFlujos() {
         </Card>
       </div>
 
-      {/* --- MODAL PERSONALIZADO PARA CONFIRMAR ELIMINACIÓN --- */}
+      {/* --- MODAL DE ELIMINACIÓN CON BOTÓN ROJO GARANTIZADO --- */}
       {flowToDelete && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4"
@@ -343,18 +343,22 @@ export default function MisFlujos() {
               >
                 Cancelar
               </button>
+
+              {/* Botón Rojo "Eliminar" con Estilo Explícito */}
               <button
                 type="button"
                 onClick={confirmDelete}
                 disabled={deletingId === flowToDelete.id}
-                className="px-4 py-2.5 text-xs font-semibold rounded-xl text-white bg-red-600 hover:bg-red-500 transition-colors shadow-md shadow-red-600/20 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className="px-5 py-2.5 text-xs font-bold rounded-xl text-white transition-all shadow-md shadow-red-600/30 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 hover:opacity-90 active:scale-95"
+                style={{ backgroundColor: "#dc2626", color: "#ffffff" }}
               >
                 {deletingId === flowToDelete.id ? (
                   <>
-                    <Loader2 size={14} className="animate-spin" /> Eliminando...
+                    <Loader2 size={14} className="animate-spin text-white" />
+                    <span>Eliminando...</span>
                   </>
                 ) : (
-                  "Eliminar"
+                  <span>Eliminar</span>
                 )}
               </button>
             </div>
