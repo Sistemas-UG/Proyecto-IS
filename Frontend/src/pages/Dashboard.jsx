@@ -246,52 +246,50 @@ export default function Dashboard() {
           </Card>
 
           {/* --- TARJETA SUGERENCIA IA --- */}
-          <Card className="relative z-10 p-6 overflow-hidden border border-blue-500/30 dark:border-blue-500/30 shadow-xl rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white flex flex-col justify-between">
-            <div className="absolute -top-10 -right-10 w-36 h-36 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+ <Card className="relative z-10 p-5 overflow-hidden border border-blue-200 dark:border-blue-500/30 shadow-md dark:shadow-xl rounded-2xl bg-gradient-to-br from-blue-50 via-indigo-50 to-white dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white flex flex-col justify-between transition-colors">
+  <div className="absolute -top-10 -right-10 w-28 h-28 bg-blue-400/10 dark:bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                    <Sparkles size={16} className="animate-pulse" />
-                  </div>
-                  <span className="text-xs font-semibold uppercase tracking-wider text-blue-400 font-body">
-                    SmartFlow IA Insight
-                  </span>
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
-                  Oportunidad
-                </span>
-              </div>
+  <div>
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-2">
+        <div className="p-1.5 rounded-xl bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30">
+          <Sparkles size={14} />
+        </div>
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 font-body">
+          IA Insight
+        </span>
+      </div>
+      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 font-mono">
+        Oportunidad
+      </span>
+    </div>
 
-              <div className="mb-5 space-y-2">
-                <h3 className="text-sm font-semibold text-white font-display">
-                  Cuello de botella en "Revisión de RRHH"
-                </h3>
-                <p className="text-xs leading-relaxed text-slate-300 font-body">
-                  Este paso toma un promedio de <span className="text-amber-400 font-semibold">72 horas</span>. Automatizar la validación de días con la nómina acelerará el cierre de solicitudes.
-                </p>
-              </div>
+    <h3 className="text-xs font-semibold text-slate-900 dark:text-white font-display mb-1.5">
+      Cuello de botella en "Revisión de RRHH"
+    </h3>
+    <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 font-body mb-3">
+      Este paso toma un promedio de <span className="text-amber-600 dark:text-amber-400 font-semibold">72 horas</span>. Automatizar la validación de días con la nómina acelerará el cierre.
+    </p>
 
-              <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10 backdrop-blur-md mb-6">
-                <div className="flex items-center gap-2">
-                  <Zap size={15} className="text-emerald-400" />
-                  <span className="text-xs text-slate-300 font-body font-medium">Ahorro estimado</span>
-                </div>
-                <span className="text-xs font-bold text-emerald-400 font-mono bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-                  -48 horas
-                </span>
-              </div>
-            </div>
+    <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/70 dark:bg-white/5 border border-blue-100 dark:border-white/10 mb-4">
+      <div className="flex items-center gap-1.5">
+        <Zap size={13} className="text-emerald-600 dark:text-emerald-400" />
+        <span className="text-[11px] text-slate-600 dark:text-slate-300 font-body font-medium">Ahorro estimado</span>
+      </div>
+      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
+        -48 horas
+      </span>
+    </div>
+  </div>
 
-            <Link
-              to="/flujos/nuevo"
-              className="w-full inline-flex items-center justify-center gap-2 text-xs font-semibold text-white rounded-xl px-4 py-3 transition-all duration-200 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] shadow-lg shadow-blue-600/30 font-body group"
-            >
-              <span>Optimizar con IA</span>
-              <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-            </Link>
-          </Card>
+  <Link
+    to="/flujos/nuevo"
+    className="w-full inline-flex items-center justify-center gap-2 text-xs font-semibold text-white rounded-xl px-4 py-2.5 transition-all duration-200 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] shadow-md shadow-blue-600/20 font-body group"
+  >
+    <span>Optimizar con IA</span>
+    <ArrowRight size={13} className="group-hover:translate-x-1 transition-transform" />
+  </Link>
+</Card>
         </div>
       </div>
     </AppShell>
