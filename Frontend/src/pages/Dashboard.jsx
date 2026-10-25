@@ -51,7 +51,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // --- PERSISTENCIA LOCAL DE SESIÓN (Carga instantánea) ---
+  // --- PERSISTENCIA LOCAL DE SESIÓN ---
   const [flows, setFlows] = useState(() => {
     try {
       const saved = localStorage.getItem("smartflow_cached_flows");
@@ -258,9 +258,9 @@ export default function Dashboard() {
           })}
         </div>
 
-        {/* --- SECCIÓN PRINCIPAL (10 FLUJOS RECIENTES + COLUMNA DERECHA) --- */}
+        {/* --- SECCIÓN PRINCIPAL (8 FLUJOS RECIENTES + COLUMNA DERECHA) --- */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
-          {/* COLUMNA IZQUIERDA: Mis Flujos Recientes (Muestra 10) */}
+          {/* COLUMNA IZQUIERDA: Mis Flujos Recientes (Muestra los 8 más recientes) */}
           <Card className="lg:col-span-2 p-5 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md flex flex-col">
             <div className="flex items-center justify-between mb-3 border-b border-slate-100 dark:border-slate-800/60 pb-3">
               <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white font-display">
@@ -272,7 +272,7 @@ export default function Dashboard() {
             </div>
 
             <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-              {flows.slice(0, 10).map((f) => (
+              {flows.slice(0, 8).map((f) => (
                 <div key={f.id} className="flex items-center justify-between py-2.5 group hover:bg-slate-50/50 dark:hover:bg-slate-800/20 px-1 rounded-lg transition-colors">
                   <div className="flex items-center gap-3 min-w-0">
                     <button
@@ -412,7 +412,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* --- MODAL DE ELIMINACIÓN CON BOTÓN ROJO GARANTIZADO --- */}
+      {/* --- MODAL DE ELIMINACIÓN DE FLUJO --- */}
       {flowToDelete && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4"
@@ -460,7 +460,6 @@ export default function Dashboard() {
                 Cancelar
               </button>
 
-              {/* Botón Rojo "Eliminar" con Estilo Explícito */}
               <button
                 type="button"
                 onClick={confirmDelete}
