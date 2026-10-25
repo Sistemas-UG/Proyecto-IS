@@ -25,7 +25,7 @@ const KPI_META = {
 };
 
 const MS_POR_DIA = 1000 * 60 * 60 * 24;
-const DIAS_PARA_ALERTA = 7; // A partir de 7 días sin completarse se considera prioridad
+const DIAS_PARA_ALERTA = 7;
 
 // Conversor universal de fechas a milisegundos (Soporta ISO, YYYY-MM-DD y DD/MM/YYYY)
 const parseDateToMs = (dateStr) => {
@@ -49,13 +49,22 @@ const parseDateToMs = (dateStr) => {
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [kpis, setKpis] = useState(null);
-  const [flows, setFlows] = useState([]);
-  const [loading, setLoading] = useState(true);
+
+  // --- PERSISTENCIA LOCAL DE SESIÓN (Carga instantánea del valor anterior) ---
+  const [flows, setFlows] = useState(() => {
+    try {
+      const saved = localStorage.getItem("smartflow_cached_flows");
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [loading, setLoading] = useState(() => flows.length === 0);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState(null);
 
-  // Normaliza objetos de flujo asegurando parseo correcto de fechas y pasos
+  // Normaliza objetos de flujo
   const normalizeFlow = (f) => {
     const rawDate = f.fecha || f.created_at || f.createdAt;
     const timestamp = parseDateToMs(rawDate);
@@ -91,13 +100,14 @@ export default function Dashboard() {
     };
   };
 
-  // CÁLCULO DINÁMICO DE KPIS
-  const calcularKPIs = (flowsList) => {
-    const totalFlujos = flowsList.length;
-    const completados = flowsList.filter((f) => f.estado === "Completado").length;
+  // --- ALGORITMO Y CÁLCULO DE KPIS ---
+  const kpis = useMemo(() => {
+    const totalFlujos = flows.length;
+    const completados = flows.filter((f) => f.estado === "Completado").length;
     const activos = totalFlujos - completados;
 
-    const horasTotales = flowsList.reduce((acc, f) => {
+    // 1. Suma total acumulada de tiempo ahorrado entre todos los flujos
+    const horasTotales = flows.reduce((acc, f) => {
       let horas = 0;
       if (typeof f.insight === "object" && f.insight?.ahorro_estimado_horas) {
         horas = Number(f.insight.ahorro_estimado_horas) || 0;
@@ -109,9 +119,18 @@ export default function Dashboard() {
       return acc + horas;
     }, 0);
 
-    const scoreCalc = totalFlujos > 0
-      ? Math.min(100, Math.round(70 + (completados / totalFlujos) * 20 + Math.min(totalFlujos * 1.5, 10)))
-      : 85;
+    // 2. ALGORITMO DEL SCORE DE OPTIMIZACIÓN
+    const flujosConInsight = flows.filter(
+      (f) => f.estado === "Completado" || f.insight || f.ahorro_estimado_horas > 0
+    ).length;
+
+    let scoreCalc = 100;
+    if (totalFlujos > 0) {
+      const ratioCompletados = completados / totalFlujos;
+      const ratioInsights = flujosConInsight / totalFlujos;
+      scoreCalc = Math.round(20 + ratioCompletados * 40 + ratioInsights * 40);
+      scoreCalc = Math.min(100, Math.max(10, scoreCalc));
+    }
 
     return {
       flujosActivos: {
@@ -127,26 +146,27 @@ export default function Dashboard() {
       scoreOptimizacion: {
         label: "Score de optimización",
         value: `${scoreCalc}%`,
-        delta: totalFlujos > 0 ? `${completados} de ${totalFlujos} procesos eficientes` : "Salud del sistema óptima",
+        delta: totalFlujos > 0 ? `${flujosConInsight} de ${totalFlujos} procesos eficientes` : "Salud del sistema óptima",
       },
     };
-  };
+  }, [flows]);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    if (flows.length === 0) setLoading(true);
     setError("");
 
-    Promise.all([api.getKpis(), api.getFlows()])
-      .then(([kpisRes, flowsRes]) => {
+    api
+      .getFlows()
+      .then((flowsRes) => {
         if (cancelled) return;
         const rawList = Array.isArray(flowsRes) ? flowsRes : flowsRes?.flows || flowsRes?.data || [];
         const normalized = rawList.map(normalizeFlow);
-
         normalized.sort((a, b) => b.rawTimestamp - a.rawTimestamp);
 
         setFlows(normalized);
-        setKpis(calcularKPIs(normalized));
+        // Persistencia para la siguiente sesión
+        localStorage.setItem("smartflow_cached_flows", JSON.stringify(normalized));
       })
       .catch((err) => !cancelled && setError(err.message))
       .finally(() => !cancelled && setLoading(false));
@@ -164,7 +184,7 @@ export default function Dashboard() {
       await api.deleteFlow(flow.id);
       const updatedList = flows.filter((item) => item.id !== flow.id);
       setFlows(updatedList);
-      setKpis(calcularKPIs(updatedList));
+      localStorage.setItem("smartflow_cached_flows", JSON.stringify(updatedList));
     } catch (err) {
       setError(err.message || "No se pudo eliminar el flujo.");
     } finally {
@@ -172,7 +192,7 @@ export default function Dashboard() {
     }
   };
 
-  // CÁLCULO REAL: FLUJOS QUE NECESITAN ATENCIÓN
+  // --- FLUJOS QUE NECESITAN ATENCIÓN ---
   const flujosAtencion = useMemo(() => {
     const ahora = Date.now();
     return flows
@@ -186,11 +206,9 @@ export default function Dashboard() {
         };
       })
       .sort((a, b) => {
-        // 1. Prioriza los que llevan más días activos
         if (b.diasActivo !== a.diasActivo) {
           return b.diasActivo - a.diasActivo;
         }
-        // 2. A igualdad de días, ordena por complejidad (número de pasos)
         return b.pasos - a.pasos;
       })
       .slice(0, 3);
@@ -209,42 +227,40 @@ export default function Dashboard() {
         subtitle="Aquí tienes el resumen de la actividad de tus procesos."
       />
 
-      {/* Contenedor Fijo Ajustado al Viewport (Sin Scrollbar Externa) */}
-      <div className="h-[calc(100vh-73px)] flex flex-col justify-between overflow-hidden p-4 md:p-5 max-w-7xl mx-auto w-full font-body box-border">
-        {loading && (
+      {/* Ajuste visual sin scrollbar externa */}
+      <div className="h-[calc(100vh-68px)] flex flex-col justify-between overflow-hidden p-3.5 md:p-4.5 max-w-7xl mx-auto w-full font-body box-border">
+        {loading && flows.length === 0 && (
           <div className="flex items-center gap-2 text-xs text-slate-400 font-body mb-2">
-            <Loader2 size={14} className="animate-spin text-blue-500" /> Cargando datos actualizados del backend...
+            <Loader2 size={14} className="animate-spin text-blue-500" /> Sincronizando datos del backend...
           </div>
         )}
 
         {error && <p className="text-xs text-red-500 font-body mb-2">Error: {error}</p>}
 
         {/* --- TARJETAS DE KPIS --- */}
-        {kpis && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 shrink-0">
-            {Object.entries(kpis).map(([key, k]) => {
-              const meta = KPI_META[key] || { label: key, icon: Gauge, tone: "text-blue-500" };
-              return (
-                <Card key={key} className="p-4 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 font-body">{meta.label}</p>
-                    <div className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/60">
-                      <meta.icon size={15} className={meta.tone} />
-                    </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-3.5 shrink-0">
+          {Object.entries(kpis).map(([key, k]) => {
+            const meta = KPI_META[key] || { label: key, icon: Gauge, tone: "text-blue-500" };
+            return (
+              <Card key={key} className="p-3.5 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 font-body">{meta.label}</p>
+                  <div className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/60">
+                    <meta.icon size={14} className={meta.tone} />
                   </div>
-                  <p className="text-2xl font-bold font-display text-slate-900 dark:text-white">{k.value}</p>
-                  <p className="text-[11px] text-slate-400 font-body mt-0.5">{k.delta}</p>
-                </Card>
-              );
-            })}
-          </div>
-        )}
+                </div>
+                <p className="text-xl md:text-2xl font-bold font-display text-slate-900 dark:text-white">{k.value}</p>
+                <p className="text-[10px] text-slate-400 font-body mt-0.5">{k.delta}</p>
+              </Card>
+            );
+          })}
+        </div>
 
         {/* --- SECCIÓN PRINCIPAL --- */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0 overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5 flex-1 min-h-0 overflow-hidden">
           {/* COLUMNA IZQUIERDA: Mis Flujos Recientes */}
-          <Card className="lg:col-span-2 p-4 md:p-5 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md flex flex-col justify-between min-h-0 overflow-hidden">
-            <div className="flex items-center justify-between mb-3 shrink-0">
+          <Card className="lg:col-span-2 p-4 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md flex flex-col justify-between min-h-0 overflow-hidden">
+            <div className="flex items-center justify-between mb-2 shrink-0">
               <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white font-display">
                 Mis Flujos Recientes
               </h2>
@@ -255,7 +271,7 @@ export default function Dashboard() {
 
             <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 pr-1">
               {flows.slice(0, 5).map((f) => (
-                <div key={f.id} className="flex items-center justify-between py-2.5 group">
+                <div key={f.id} className="flex items-center justify-between py-2 group">
                   <div className="flex items-center gap-3 min-w-0">
                     <button
                       type="button"
@@ -263,13 +279,13 @@ export default function Dashboard() {
                       className="text-left font-body group-hover:text-blue-500 transition-colors cursor-pointer truncate"
                     >
                       <p className="text-xs font-semibold text-slate-900 dark:text-white font-body truncate">{f.nombre}</p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-body">{f.fecha} · {f.pasos || 0} pasos</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-body">{f.fecha} · {f.pasos || 0} pasos</p>
                     </button>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
                     <Pill tone={f.estado === "Completado" ? "blue" : "green"}>
-                      {f.estado === "Completado" && <CheckCircle2 size={11} className="inline mr-1" />}
+                      {f.estado === "Completado" && <CheckCircle2 size={10} className="inline mr-1" />}
                       {f.estado || "Activo"}
                     </Pill>
 
@@ -279,9 +295,9 @@ export default function Dashboard() {
                       disabled={deletingId === f.id}
                       title="Eliminar flujo"
                       aria-label={`Eliminar ${f.nombre}`}
-                      className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 transition-colors cursor-pointer"
+                      className="p-1 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 transition-colors cursor-pointer"
                     >
-                      {deletingId === f.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                      {deletingId === f.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
                     </button>
                   </div>
                 </div>
@@ -294,14 +310,14 @@ export default function Dashboard() {
           </Card>
 
           {/* COLUMNA DERECHA: IA Insight + Flujos que necesitan atención */}
-          <div className="flex flex-col gap-4 min-h-0 justify-between overflow-hidden">
+          <div className="flex flex-col gap-3.5 min-h-0 justify-between overflow-hidden">
             {/* TARJETA SUGERENCIA IA */}
-            <Card className="relative p-4 overflow-hidden border border-blue-200 dark:border-blue-500/30 shadow-sm rounded-2xl bg-gradient-to-br from-blue-50 via-indigo-50 to-white dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white flex flex-col justify-between shrink-0">
+            <Card className="relative p-3.5 overflow-hidden border border-blue-200 dark:border-blue-500/30 shadow-sm rounded-2xl bg-gradient-to-br from-blue-50 via-indigo-50 to-white dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white flex flex-col justify-between shrink-0">
               <div>
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-1.5">
                     <div className="p-1 rounded-lg bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30">
-                      <Sparkles size={13} />
+                      <Sparkles size={12} />
                     </div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 font-body">
                       IA Insight
@@ -319,9 +335,9 @@ export default function Dashboard() {
                   Este paso toma un promedio de <span className="text-amber-600 dark:text-amber-400 font-semibold">72 horas</span>. Automatizar la validación acelerará el cierre.
                 </p>
 
-                <div className="flex items-center justify-between p-2 rounded-xl bg-white/70 dark:bg-white/5 border border-blue-100 dark:border-white/10 mb-2">
+                <div className="flex items-center justify-between p-1.5 rounded-xl bg-white/70 dark:bg-white/5 border border-blue-100 dark:border-white/10 mb-2">
                   <div className="flex items-center gap-1.5">
-                    <Zap size={12} className="text-emerald-600 dark:text-emerald-400" />
+                    <Zap size={11} className="text-emerald-600 dark:text-emerald-400" />
                     <span className="text-[10px] text-slate-600 dark:text-slate-300 font-body font-medium">Ahorro estimado</span>
                   </div>
                   <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
@@ -332,7 +348,7 @@ export default function Dashboard() {
 
               <Link
                 to="/flujos/nuevo"
-                className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white rounded-xl px-3 py-2 transition-all duration-200 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] shadow-sm font-body group"
+                className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white rounded-xl px-3 py-1.5 transition-all duration-200 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] shadow-sm font-body group"
               >
                 <span>Optimizar con IA</span>
                 <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
@@ -340,32 +356,32 @@ export default function Dashboard() {
             </Card>
 
             {/* TARJETA FLUJOS QUE NECESITAN ATENCIÓN */}
-            <Card className="p-4 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md flex flex-col justify-between flex-1 min-h-0 overflow-hidden">
+            <Card className="p-3.5 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md flex flex-col justify-between flex-1 min-h-0 overflow-hidden">
               <div>
-                <div className="flex items-center gap-2 mb-0.5">
+                <div className="flex items-center gap-1.5 mb-0.5">
                   <div className="p-1 rounded-lg bg-amber-100 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30">
-                    <Clock size={13} />
+                    <Clock size={12} />
                   </div>
                   <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white font-display">
                     Flujos que necesitan atención
                   </h2>
                 </div>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-body mb-2">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-body mb-1.5">
                   Procesos activos con mayor tiempo pendiente.
                 </p>
 
                 {flujosAtencion.length > 0 ? (
-                  <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800/60 overflow-y-auto max-h-[160px] pr-1">
+                  <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800/60 overflow-y-auto max-h-[140px] pr-1">
                     {flujosAtencion.map((f) => {
                       const esAlerta = f.diasActivo >= DIAS_PARA_ALERTA;
                       return (
-                        <div key={f.id} className="flex items-center justify-between gap-2 py-2">
+                        <div key={f.id} className="flex items-center justify-between gap-2 py-1.5">
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-semibold text-slate-900 dark:text-white font-body truncate">
                               {f.nombre}
                             </p>
                             <div className="flex items-center gap-1 mt-0.5">
-                              {esAlerta && <AlertTriangle size={11} className="text-amber-500 shrink-0" />}
+                              {esAlerta && <AlertTriangle size={10} className="text-amber-500 shrink-0" />}
                               <p className={`text-[10px] font-body ${esAlerta ? "text-amber-600 dark:text-amber-400 font-semibold" : "text-slate-500 dark:text-slate-400"}`}>
                                 {textoDiasActivo(f.diasActivo)}
                               </p>
@@ -373,7 +389,7 @@ export default function Dashboard() {
                           </div>
                           <Link
                             to={`/flujos/${f.id}`}
-                            className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 rounded-lg px-2 py-1 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors font-body group"
+                            className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 rounded-lg px-2 py-0.5 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors font-body group"
                           >
                             Revisar
                             <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform" />
