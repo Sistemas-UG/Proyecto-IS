@@ -24,6 +24,8 @@ import {
   getFlujosAtencion,
   touchFlow,
   forgetFlow,
+  setFlowStatus,
+  applyStatusOverrides,
   DIAS_ATENCION,
   DIAS_INACTIVO,
 } from "../lib/flowlogic";
@@ -42,7 +44,7 @@ export default function Dashboard() {
   const [flows, setFlows] = useState(() => {
     try {
       const saved = localStorage.getItem("smartflow_cached_flows");
-      return saved ? JSON.parse(saved) : [];
+      return saved ? applyStatusOverrides(JSON.parse(saved)) : [];
     } catch (e) {
       return [];
     }
@@ -54,6 +56,7 @@ export default function Dashboard() {
   // Estado para el modal de eliminación
   const [flowToDelete, setFlowToDelete] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState(null);
 
   // Flujos con estado efectivo (según días sin actividad)
   const enrichedFlows = useMemo(() => enrichFlows(flows), [flows]);
@@ -118,7 +121,7 @@ export default function Dashboard() {
       .then((flowsRes) => {
         if (cancelled) return;
         const rawList = Array.isArray(flowsRes) ? flowsRes : flowsRes?.flows || flowsRes?.data || [];
-        const normalized = rawList.map(normalizeFlow);
+        const normalized = applyStatusOverrides(rawList.map(normalizeFlow));
         normalized.sort((a, b) => b.rawTimestamp - a.rawTimestamp);
 
         setFlows(normalized);
@@ -131,6 +134,35 @@ export default function Dashboard() {
       cancelled = true;
     };
   }, []);
+
+  // --- CAMBIO DE ESTADO (Activo <-> Completado) ---
+  // Se guarda localmente de inmediato; el backend se intenta actualizar,
+  // pero si falla ya NO se revierte el cambio.
+  const handleToggleStatus = async (flow) => {
+    const nuevoEstado = flow.estado === "Completado" ? "Activo" : "Completado";
+
+    touchFlow(flow.id);
+    setFlowStatus(flow.id, nuevoEstado);
+
+    setFlows((prev) => {
+      const updated = prev.map((item) => (item.id === flow.id ? { ...item, estado: nuevoEstado } : item));
+      localStorage.setItem("smartflow_cached_flows", JSON.stringify(updated));
+      return updated;
+    });
+
+    setUpdatingStatusId(flow.id);
+    try {
+      if (typeof api.updateFlow === "function") {
+        await api.updateFlow(flow.id, { estado: nuevoEstado });
+      } else if (typeof api.updateFlowStatus === "function") {
+        await api.updateFlowStatus(flow.id, nuevoEstado);
+      }
+    } catch (err) {
+      console.warn("No se pudo guardar el estado en el backend (se mantiene localmente):", err);
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
 
   // --- ELIMINACIÓN DESDE EL MODAL ---
   const confirmDelete = async () => {
@@ -152,8 +184,8 @@ export default function Dashboard() {
   };
 
   // --- FLUJOS QUE NECESITAN ATENCIÓN ---
-  // Solo activos con >= DIAS_ATENCION días sin actividad, ordenados por prioridad.
-  // Al completar, abrir o revisar un flujo, sale de la lista y entra el siguiente.
+  // Los 3 flujos activos más viejos. Al revisar o completar uno,
+  // sale de la lista y entra el siguiente.
   const flujosAtencion = useMemo(() => getFlujosAtencion(enrichedFlows, 3), [enrichedFlows]);
 
   const textoDiasSinActividad = (dias) => {
@@ -178,7 +210,7 @@ export default function Dashboard() {
       <div className="flex-1 overflow-y-auto p-4 md:p-6 max-w-7xl mx-auto w-full font-body box-border">
         {loading && flows.length === 0 && (
           <div className="flex items-center gap-2 text-xs text-slate-400 font-body mb-3">
-            <Loader2 size={14} className="animate-spin text-blue-500" /> Sincronizando datos del backend...
+            <Loader2 size={14} className="animate-spin text-blue" /> Sincronizando datos del backend...
           </div>
         )}
 
@@ -206,7 +238,7 @@ export default function Dashboard() {
           })}
         </div>
 
-        {/* --- SECCIÓN PRINCIPAL (8 FLUJOS RECIENTES + COLUMNA DERECHA) --- */}
+        {/* --- SECCIÓN PRINCIPAL --- */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
           {/* COLUMNA IZQUIERDA: Mis Flujos Recientes */}
           <Card className="lg:col-span-2 p-5 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md flex flex-col">
@@ -216,7 +248,7 @@ export default function Dashboard() {
               </h2>
               <Link
                 to="/flujos"
-                className="text-xs font-semibold text-blue-600 dark:text-blue-400 font-body flex items-center gap-1 hover:underline"
+                className="text-xs font-semibold text-blue dark:text-blue-400 font-body flex items-center gap-1 hover:underline"
               >
                 Ver todos ({flows.length}) <ChevronRight size={13} />
               </Link>
@@ -232,7 +264,7 @@ export default function Dashboard() {
                     <button
                       type="button"
                       onClick={() => openFlow(f.id)}
-                      className="text-left font-body group-hover:text-blue-500 transition-colors cursor-pointer truncate"
+                      className="text-left font-body group-hover:text-blue transition-colors cursor-pointer truncate"
                     >
                       <p className="text-xs font-semibold text-slate-900 dark:text-white font-body truncate">
                         {f.nombre}
@@ -244,11 +276,28 @@ export default function Dashboard() {
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    <Pill tone={f.estadoTone}>
-                      {f.estadoLabel === "Completado" && <CheckCircle2 size={10} className="inline mr-1" />}
-                      {f.estadoLabel === "Requiere atención" && <AlertTriangle size={10} className="inline mr-1" />}
-                      {f.estadoLabel || "Activo"}
-                    </Pill>
+                    {/* Estado clicable: alterna Activo <-> Completado */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleStatus(f)}
+                      disabled={updatingStatusId === f.id}
+                      title={
+                        f.estado === "Completado" ? "Clic para reactivar el flujo" : "Clic para marcar como completado"
+                      }
+                      className="hover:scale-105 active:scale-95 transition-transform cursor-pointer inline-flex items-center whitespace-nowrap"
+                    >
+                      {updatingStatusId === f.id ? (
+                        <Loader2 size={13} className="animate-spin text-blue" />
+                      ) : (
+                        <Pill tone={f.estadoTone}>
+                          {f.estadoLabel === "Completado" && <CheckCircle2 size={10} className="inline mr-1" />}
+                          {f.estadoLabel === "Requiere atención" && (
+                            <AlertTriangle size={10} className="inline mr-1" />
+                          )}
+                          {f.estadoLabel || "Activo"}
+                        </Pill>
+                      )}
+                    </button>
 
                     {/* Botón basurero abre el modal */}
                     <button
@@ -315,7 +364,7 @@ export default function Dashboard() {
 
               <Link
                 to="/flujos/nuevo"
-                className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white rounded-xl px-3 py-2 transition-all duration-200 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] shadow-sm font-body group"
+                className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white rounded-xl px-3 py-2 transition-all duration-200 bg-blue hover:opacity-90 active:scale-[0.98] shadow-sm font-body group"
               >
                 <span>Optimizar con IA</span>
                 <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
@@ -334,13 +383,14 @@ export default function Dashboard() {
                   </h2>
                 </div>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 font-body mb-2">
-                  Activos con {DIAS_ATENCION}+ días sin movimiento, por prioridad.
+                  Los 3 flujos activos más antiguos sin revisar.
                 </p>
 
                 {flujosAtencion.length > 0 ? (
                   <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800/60">
                     {flujosAtencion.map((f) => {
                       const critico = f.diasSinActividad >= DIAS_INACTIVO;
+                      const alerta = f.diasSinActividad >= DIAS_ATENCION;
                       return (
                         <div key={f.id} className="flex items-center justify-between gap-2 py-2">
                           <div className="min-w-0 flex-1">
@@ -348,13 +398,21 @@ export default function Dashboard() {
                               {f.nombre}
                             </p>
                             <div className="flex items-center gap-1 mt-0.5">
-                              <AlertTriangle
-                                size={10}
-                                className={`shrink-0 ${critico ? "text-red-500" : "text-amber-500"}`}
-                              />
+                              {alerta ? (
+                                <AlertTriangle
+                                  size={10}
+                                  className={`shrink-0 ${critico ? "text-red-500" : "text-amber-500"}`}
+                                />
+                              ) : (
+                                <Clock size={10} className="shrink-0 text-slate-400" />
+                              )}
                               <p
-                                className={`text-[10px] font-body font-semibold ${
-                                  critico ? "text-red-500 dark:text-rose-400" : "text-amber-600 dark:text-amber-400"
+                                className={`text-[10px] font-body ${
+                                  critico
+                                    ? "font-semibold text-red-500 dark:text-rose-400"
+                                    : alerta
+                                    ? "font-semibold text-amber-600 dark:text-amber-400"
+                                    : "text-slate-500 dark:text-slate-400"
                                 }`}
                               >
                                 {textoDiasSinActividad(f.diasSinActividad)}
@@ -364,7 +422,7 @@ export default function Dashboard() {
                           <Link
                             to={`/flujos/${f.id}`}
                             onClick={() => touchFlow(f.id)}
-                            className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 rounded-lg px-2 py-1 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors font-body group"
+                            className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold text-blue dark:text-blue-400 border border-blue/30 rounded-lg px-2 py-1 hover:bg-blueSoft dark:hover:bg-blue/10 transition-colors font-body group"
                           >
                             Revisar
                             <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform" />
@@ -376,7 +434,7 @@ export default function Dashboard() {
                 ) : (
                   <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400 font-body py-2">
                     <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
-                    {loading ? "Calculando..." : "Todo al día: no hay flujos pendientes de revisión."}
+                    {loading ? "Calculando..." : "Todo al día: no hay flujos activos pendientes."}
                   </div>
                 )}
               </div>

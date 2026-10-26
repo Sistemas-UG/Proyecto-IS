@@ -140,7 +140,7 @@ export const normalizeFlow = (f) => {
 
 // ---------------------------------------------------------------------
 // Estado efectivo según días sin actividad
-// Agrega: diasSinActividad, estadoLabel, estadoTone
+// Agrega: ultimaActividad, diasSinActividad, estadoLabel, estadoTone
 // (el campo "estado" original NO se modifica)
 // ---------------------------------------------------------------------
 export const enrichFlows = (flows) => {
@@ -168,20 +168,20 @@ export const enrichFlows = (flows) => {
       }
     }
 
-    return { ...f, diasSinActividad: dias, estadoLabel, estadoTone };
+    return { ...f, ultimaActividad: ultima, diasSinActividad: dias, estadoLabel, estadoTone };
   });
 };
 
 // ---------------------------------------------------------------------
 // Flujos que necesitan atención (recibe flujos ya enriquecidos)
-// Solo Activos con DIAS_ATENCION+ días sin movimiento, por prioridad
+// Los N flujos ACTIVOS con más tiempo sin atender (el más viejo primero).
+// Al revisar o completar uno, sale de la lista y entra el siguiente.
 // ---------------------------------------------------------------------
 export const getFlujosAtencion = (enrichedFlows, limit = 3) =>
   enrichedFlows
-    .filter((f) => f.estado === "Activo" && f.diasSinActividad >= DIAS_ATENCION)
-    .map((f) => ({
-      ...f,
-      prioridad: f.diasSinActividad + (f.pasos || 0) * 0.5 + (f.insight ? 5 : 0),
-    }))
-    .sort((a, b) => b.prioridad - a.prioridad)
+    .filter((f) => f.estado === "Activo")
+    .sort((a, b) => {
+      if (a.ultimaActividad !== b.ultimaActividad) return a.ultimaActividad - b.ultimaActividad;
+      return (b.pasos || 0) - (a.pasos || 0);
+    })
     .slice(0, limit);
