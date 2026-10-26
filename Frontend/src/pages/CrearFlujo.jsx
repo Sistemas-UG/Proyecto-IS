@@ -14,6 +14,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
 import { layoutNodes, layoutEdges, styleForTipo, edgeStyleForLabel } from "../lib/flowLayout";
 import { crearReportePDF } from "../lib/reportPdf";
+import { extractPdfText } from "../lib/pdfText";
 
 const NODE_TYPES = [
   { tipo: "inicio", label: "Inicio", icon: PlayCircle, defaultLabel: "Inicio del proceso" },
@@ -86,10 +87,8 @@ export default function CrearFlujo() {
   // Vista previa del PDF en modal (en vez de un iframe fijo dentro del panel,
   // que obligaba a hacer scroll para ver el resto de las opciones).
   const [previewOpen, setPreviewOpen] = useState(false);
-  // La caja de AI Insight (Optimización + Sugerencia) podía ser muy larga y
-  // empujar todo lo de abajo, obligando a hacer scroll. Ahora arranca
-  // colapsada (solo título + ahorro estimado) y se expande si el usuario
-  // quiere leer el detalle completo.
+  // La caja de AI Insight arranca colapsada (solo título + ahorro estimado)
+  // y se expande si el usuario quiere leer el detalle completo.
   const [insightOpen, setInsightOpen] = useState(false);
 
   // --- Lienzo compartido ---
@@ -193,6 +192,7 @@ export default function CrearFlujo() {
     setSelection({ nodes: [], edges: [] });
   };
 
+  // --- Protocolo PDF: se lee en el navegador y se genera el flujo solo ---
   const handlePdfSelected = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -206,8 +206,14 @@ export default function CrearFlujo() {
     setExtractingPdf(true);
     setError("");
     try {
-      const { descripcion: textoExtraido } = await api.extractPdfFlow(file);
-      setDescripcion(textoExtraido);
+      const texto = await extractPdfText(file);
+      if (texto.length < 40) {
+        throw new Error("No se encontró texto en el PDF. Si es un documento escaneado (imagen), no se puede leer.");
+      }
+      setMode("ia");
+      setDescripcion(texto);
+      setExtractingPdf(false);
+      await handleGenerar(texto); // genera el flujo automáticamente
     } catch (err) {
       setError(err.message || "No se pudo leer el PDF.");
     } finally {
@@ -215,8 +221,10 @@ export default function CrearFlujo() {
     }
   };
 
-  const handleGenerar = async () => {
-    if (!descripcion.trim()) return;
+  const handleGenerar = async (textoOverride) => {
+    // Si viene del PDF recibe el texto directo; si viene del botón, usa la descripción escrita
+    const texto = typeof textoOverride === "string" ? textoOverride : descripcion;
+    if (!texto.trim()) return;
     setLoading(true);
     setSaved(false);
     setSavedFlowId(null);
@@ -224,7 +232,7 @@ export default function CrearFlujo() {
     setInsightOpen(false);
     setError("");
     try {
-      const result = await api.generateFlow(descripcion, flujoGeneral);
+      const result = await api.generateFlow(texto, flujoGeneral);
       setAiResult(result);
       setFlowName(result.nombre || "");
       setNodes(layoutNodes(result.nodes, result.edges));
@@ -358,7 +366,7 @@ export default function CrearFlujo() {
                   <button
                     type="button"
                     onClick={() => pdfInputRef.current?.click()}
-                    disabled={extractingPdf}
+                    disabled={extractingPdf || loading}
                     className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-ink dark:text-white border border-dashed border-border dark:border-navyCard rounded-lg py-2.5 font-body bg-bg dark:bg-navyDeep hover:border-blue transition-colors disabled:opacity-70 mb-2 cursor-pointer"
                   >
                     {extractingPdf ? (
@@ -372,7 +380,7 @@ export default function CrearFlujo() {
                     )}
                   </button>
                   <p className="text-[11px] text-faint font-body mb-3">
-                    La IA extrae el contenido y precarga la descripción.
+                    Sube un PDF: se lee el texto y se genera el flujo automáticamente.
                   </p>
                 </>
               )}
@@ -412,7 +420,7 @@ export default function CrearFlujo() {
               )}
 
               <button
-                onClick={handleGenerar}
+                onClick={() => handleGenerar()}
                 disabled={loading}
                 className="w-full rounded-lg text-sm font-semibold text-white py-3 flex items-center justify-center gap-2 font-body disabled:opacity-70 bg-navy dark:bg-blue hover:opacity-90 transition-all cursor-pointer"
               >
@@ -465,8 +473,7 @@ export default function CrearFlujo() {
 
           {error && <p className="text-xs text-red font-body mt-3">{error}</p>}
 
-          {/* Caja AI Insight: colapsada por defecto para no empujar todo
-              hacia abajo (antes mostraba siempre el texto completo). */}
+          {/* Caja AI Insight: colapsada por defecto */}
           {aiResult?.insight && (
             <div className="mt-5 rounded-xl bg-blueSoft dark:bg-blue/15 border border-blue/20 dark:border-blue/30 transition-colors overflow-hidden">
               <button
@@ -563,10 +570,6 @@ export default function CrearFlujo() {
                 </button>
               </div>
 
-              {/* Antes había un iframe de 480px siempre visible acá, lo que
-                  obligaba a hacer scroll para ver el resto del panel. Ahora
-                  la vista previa vive en un modal (igual que en Reportes),
-                  y acá solo queda un botón chico. */}
               {reportText && reportPdfUrl && (
                 <button
                   type="button"
@@ -703,7 +706,7 @@ export default function CrearFlujo() {
               <div className="flex shrink-0 items-center gap-2">
                 <button
                   onClick={handleDescargarPDF}
-                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue px-3 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
                 >
                   <FileDown size={14} />
                   Descargar PDF
