@@ -38,13 +38,13 @@ export const Avatar = ({ initials, src, tone = "bg-blue", size = 34, className =
 };
 
 export const Logo = ({ light, className = "" }) => (
-  <div className={`flex items-center gap-2.5 shrink-0 ${className}`}>
+  <div className={`flex items-center gap-3 shrink-0 ${className}`}>
     <img
       src="/logo-icon.png"
       alt="SmartFlow AI"
-      className="h-9 w-auto object-contain transition-transform hover:scale-105"
+      className="h-12 w-auto object-contain bg-transparent transition-transform hover:scale-105"
     />
-    <span className={`text-[17px] font-bold tracking-tight font-display ${light ? "text-white" : "text-ink dark:text-white"}`}>
+    <span className={`text-[20px] font-bold tracking-tight font-display ${light ? "text-white" : "text-ink dark:text-white"}`}>
       SmartFlow{" "}
       <span
         className="bg-clip-text text-transparent"
