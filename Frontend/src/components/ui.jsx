@@ -44,7 +44,7 @@ export const Logo = ({ light, className = "" }) => (
       alt="SmartFlow AI"
       className="h-16 w-auto object-contain bg-transparent -mr-1.5 transition-transform hover:scale-105"
     />
-    <span className={`text-[22px] font-bold tracking-tight font-display ${light ? "text-white" : "text-ink dark:text-white"}`}>
+    <span className={`text-[26px] font-bold tracking-tight font-display ${light ? "text-white" : "text-ink dark:text-white"}`}>
       SmartFlow{" "}
       <span
         className="bg-clip-text text-transparent"
