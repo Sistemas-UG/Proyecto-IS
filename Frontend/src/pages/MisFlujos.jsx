@@ -1,70 +1,35 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { 
-  PlusCircle, 
-  Workflow, 
-  ChevronRight, 
-  Search, 
-  Loader2, 
-  Trash2, 
-  CheckCircle2, 
-  X, 
-  AlertTriangle 
+import {
+  PlusCircle,
+  Workflow,
+  ChevronRight,
+  Search,
+  Loader2,
+  Trash2,
+  CheckCircle2,
+  X,
+  AlertTriangle,
 } from "lucide-react";
 import AppShell, { TopBar } from "../components/AppShell";
 import { Card, Pill } from "../components/ui";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
+import { normalizeFlow, enrichFlows, touchFlow, forgetFlow } from "../lib/flowLogic";
 
 export default function MisFlujos() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  
+
   const [flows, setFlows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [error, setError] = useState("");
-  
+
   // Estado para el flujo seleccionado a eliminar y carga de eliminación
   const [flowToDelete, setFlowToDelete] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
-
-  // Normaliza la estructura recibida del backend
-  const normalizeFlow = (f) => {
-    let formattedDate = "Reciente";
-    const rawDate = f.fecha || f.created_at || f.createdAt;
-    if (rawDate) {
-      try {
-        const parsed = new Date(rawDate);
-        if (!isNaN(parsed.getTime())) {
-          formattedDate = parsed.toISOString().split("T")[0];
-        }
-      } catch (e) {
-        formattedDate = "Reciente";
-      }
-    }
-
-    let stepsData = f.pasos || f.nodes || f.steps || f.diagrama?.nodes || f.pasos_json || [];
-    if (typeof stepsData === "string") {
-      try { stepsData = JSON.parse(stepsData); } catch (e) { stepsData = []; }
-    }
-    if (!Array.isArray(stepsData) && typeof stepsData === "object" && stepsData !== null) {
-      stepsData = stepsData.nodes || stepsData.pasos || stepsData.steps || [];
-    }
-
-    const totalPasos = Array.isArray(stepsData)
-      ? stepsData.length
-      : (typeof f.pasos === "number" ? f.pasos : 0);
-
-    return {
-      id: f.id || f.id_flujo || f._id,
-      nombre: f.nombre || f.title || f.name || "Flujo sin nombre",
-      fecha: formattedDate,
-      pasos: totalPasos,
-      estado: f.estado || f.status || "Activo",
-    };
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +41,7 @@ export default function MisFlujos() {
         if (!cancelled) {
           const rawList = Array.isArray(res) ? res : res?.flows || res?.data || [];
           const normalized = rawList.map(normalizeFlow);
+          normalized.sort((a, b) => b.rawTimestamp - a.rawTimestamp);
           setFlows(normalized);
           localStorage.setItem("smartflow_cached_flows", JSON.stringify(normalized));
         }
@@ -92,10 +58,22 @@ export default function MisFlujos() {
     };
   }, []);
 
+  // Flujos con estado efectivo (Activo / Requiere atención / Inactivo / Completado)
+  const enrichedFlows = useMemo(() => enrichFlows(flows), [flows]);
+
+  // Abrir un flujo cuenta como atenderlo: reinicia su contador de inactividad
+  const openFlow = (id) => {
+    touchFlow(id);
+    navigate(`/flujos/${id}`);
+  };
+
   // --- CAMBIO OPTIMISTA DE ESTADO (Activo <-> Completado) ---
   const handleToggleStatus = async (flow) => {
     const estadoOriginal = flow.estado;
-    const nuevoEstado = estadoOriginal === "Activo" ? "Completado" : "Activo";
+    const nuevoEstado = estadoOriginal === "Completado" ? "Activo" : "Completado";
+
+    // Cambiar el estado también reinicia el contador de actividad
+    touchFlow(flow.id);
 
     setFlows((prev) => {
       const updated = prev.map((item) => (item.id === flow.id ? { ...item, estado: nuevoEstado } : item));
@@ -125,15 +103,14 @@ export default function MisFlujos() {
   // --- CONFIRMACIÓN Y BORRADO EN BASE DE DATOS (Cloud SQL / PostgreSQL) ---
   const confirmDelete = async () => {
     if (!flowToDelete) return;
-    
+
     setDeletingId(flowToDelete.id);
     setError("");
 
     try {
-      // 1. Petición DELETE a PostgreSQL
       await api.deleteFlow(flowToDelete.id);
-      
-      // 2. Sincroniza estado local y caché para el Dashboard
+      forgetFlow(flowToDelete.id);
+
       setFlows((current) => {
         const updated = current.filter((item) => item.id !== flowToDelete.id);
         localStorage.setItem("smartflow_cached_flows", JSON.stringify(updated));
@@ -148,11 +125,12 @@ export default function MisFlujos() {
     }
   };
 
-  // Filtrado reactivo por nombre o estado
-  const filteredFlows = flows.filter(
+  // Filtrado reactivo por nombre o estado (busca también por el estado efectivo)
+  const filteredFlows = enrichedFlows.filter(
     (f) =>
       f.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      f.estado?.toLowerCase().includes(searchTerm.toLowerCase())
+      f.estado?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      f.estadoLabel?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -180,7 +158,7 @@ export default function MisFlujos() {
             {error}
           </p>
         )}
-        
+
         <div className="flex items-center justify-between mb-6">
           <p className="text-sm text-slate-500 dark:text-slate-400 font-body">
             {loading ? (
@@ -202,7 +180,7 @@ export default function MisFlujos() {
 
         <Card className="overflow-hidden border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm dark:shadow-2xl bg-white dark:bg-[#111827]/90 backdrop-blur-xl">
           {/* Header de Tabla */}
-          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_0.6fr] px-6 py-3.5 text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800/80 uppercase tracking-wider font-body">
+          <div className="grid grid-cols-[2fr_1fr_1fr_1.2fr_0.8fr] px-6 py-3.5 text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800/80 uppercase tracking-wider font-body">
             <span>Nombre</span>
             <span>Fecha de creación</span>
             <span>Pasos</span>
@@ -232,59 +210,62 @@ export default function MisFlujos() {
             filteredFlows.map((f) => (
               <div
                 key={f.id}
-                className="grid grid-cols-[2fr_1fr_1fr_1fr_0.8fr] items-center px-6 py-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors border-t border-slate-100 dark:border-slate-800/60 first:border-t-0 group"
+                className="grid grid-cols-[2fr_1fr_1fr_1.2fr_0.8fr] items-center px-6 py-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors border-t border-slate-100 dark:border-slate-800/60 first:border-t-0 group"
               >
                 <div className="flex items-center min-w-0">
-                  <button 
-                    type="button" 
-                    onClick={() => navigate(`/flujos/${f.id}`)} 
+                  <button
+                    type="button"
+                    onClick={() => openFlow(f.id)}
                     className="text-left text-sm font-semibold text-slate-900 dark:text-white font-body group-hover:text-blue-500 transition-colors cursor-pointer truncate"
                   >
                     {f.nombre}
                   </button>
                 </div>
 
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-body font-mono">
-                  {f.fecha}
-                </span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-body font-mono">{f.fecha}</span>
 
                 <span className="text-sm text-slate-600 dark:text-slate-300 font-body font-medium">
                   {f.pasos} {f.pasos === 1 ? "paso" : "pasos"}
                 </span>
 
-                {/* Botón Clicable de Estado */}
+                {/* Botón clicable de estado: alterna Activo <-> Completado */}
                 <div>
                   <button
                     type="button"
                     onClick={() => handleToggleStatus(f)}
                     disabled={updatingStatusId === f.id}
-                    title="Haz clic para cambiar el estado del flujo"
-                    className="hover:scale-105 active:scale-95 transition-transform cursor-pointer inline-flex items-center gap-1.5"
+                    title={
+                      f.estado === "Completado"
+                        ? "Haz clic para reactivar el flujo"
+                        : `Sin actividad hace ${f.diasSinActividad} ${f.diasSinActividad === 1 ? "día" : "días"} · clic para marcar como completado`
+                    }
+                    className="hover:scale-105 active:scale-95 transition-transform cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap"
                   >
                     {updatingStatusId === f.id ? (
                       <Loader2 size={13} className="animate-spin text-blue-500" />
                     ) : (
-                      <Pill tone={f.estado === "Activo" ? "green" : f.estado === "Completado" ? "blue" : "amber"}>
-                        {f.estado === "Completado" && <CheckCircle2 size={11} className="inline mr-1" />}
-                        {f.estado}
+                      <Pill tone={f.estadoTone}>
+                        {f.estadoLabel === "Completado" && <CheckCircle2 size={11} className="inline mr-1" />}
+                        {f.estadoLabel === "Requiere atención" && <AlertTriangle size={11} className="inline mr-1" />}
+                        {f.estadoLabel}
                       </Pill>
                     )}
                   </button>
                 </div>
 
                 <div className="flex items-center justify-end gap-2">
-                  <button 
-                    type="button" 
-                    onClick={() => setFlowToDelete(f)} 
-                    title="Eliminar flujo" 
-                    aria-label={`Eliminar ${f.nombre}`} 
+                  <button
+                    type="button"
+                    onClick={() => setFlowToDelete(f)}
+                    title="Eliminar flujo"
+                    aria-label={`Eliminar ${f.nombre}`}
                     className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
                   >
                     <Trash2 size={15} />
                   </button>
-                  <button 
-                    type="button" 
-                    onClick={() => navigate(`/flujos/${f.id}`)} 
+                  <button
+                    type="button"
+                    onClick={() => openFlow(f.id)}
                     className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:translate-x-1 transition-transform font-body cursor-pointer"
                   >
                     Abrir <ChevronRight size={14} />
@@ -296,7 +277,7 @@ export default function MisFlujos() {
         </Card>
       </div>
 
-      {/* --- MODAL DE ELIMINACIÓN CON BOTÓN ROJO GARANTIZADO --- */}
+      {/* --- MODAL DE ELIMINACIÓN --- */}
       {flowToDelete && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4"
@@ -321,9 +302,7 @@ export default function MisFlujos() {
                 <AlertTriangle size={20} />
               </div>
               <div>
-                <h3 className="text-base font-bold font-display text-slate-900 dark:text-white">
-                  Eliminar flujo
-                </h3>
+                <h3 className="text-base font-bold font-display text-slate-900 dark:text-white">Eliminar flujo</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-body">
                   Confirmación de borrado permanente
                 </p>
@@ -331,7 +310,9 @@ export default function MisFlujos() {
             </div>
 
             <p className="text-sm text-slate-600 dark:text-slate-300 font-body leading-relaxed mb-6">
-              ¿Seguro que quieres eliminar <strong className="font-semibold text-slate-900 dark:text-white">"{flowToDelete.nombre}"</strong>? Esta acción no se puede deshacer y el flujo se borrará de la base de datos.
+              ¿Seguro que quieres eliminar{" "}
+              <strong className="font-semibold text-slate-900 dark:text-white">"{flowToDelete.nombre}"</strong>? Esta
+              acción no se puede deshacer.
             </p>
 
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
@@ -344,7 +325,6 @@ export default function MisFlujos() {
                 Cancelar
               </button>
 
-              {/* Botón Rojo "Eliminar" con Estilo Explícito */}
               <button
                 type="button"
                 onClick={confirmDelete}
