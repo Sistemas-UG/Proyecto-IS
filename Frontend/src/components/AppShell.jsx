@@ -90,14 +90,14 @@ export default function AppShell({ children }) {
       >
         <div>
           {/* Encabezado:
-              - Abierto: logo completo (dibujo + "SmartFlow AI") como en el login + botón de menú
+              - Abierto: botón de 3 líneas a la izquierda + logo completo a su lado
               - Colapsado: solo el botón de menú, sin logo */}
           {collapsed ? (
             <div className="flex justify-center mb-8 w-full">{menuButton}</div>
           ) : (
-            <div className="flex items-center justify-between gap-2 mb-8 w-full px-1">
-              <Logo size="md" />
+            <div className="flex items-center gap-2 mb-8 w-full px-1">
               {menuButton}
+              <Logo size="md" />
             </div>
           )}
 
