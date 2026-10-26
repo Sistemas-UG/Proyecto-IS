@@ -225,84 +225,68 @@ export default function Configuracion() {
       <TopBar title="Configuración" subtitle="Cuenta, equipo e integraciones." />
 
       <div className="flex-1 overflow-auto p-6 md:p-8 w-full max-w-6xl mx-auto font-body">
-        {/* ===================== HERO DE PERFIL ===================== */}
-        <Card className="overflow-hidden mb-6">
-          {/* Banner con degradado de marca */}
-          <div className="relative h-28 bg-gradient-to-r from-[#5B5FEF] via-[#7C5CF0] to-[#8B5CF6]">
-            <div className="absolute -top-10 -left-6 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
-            <div className="absolute -bottom-12 right-10 w-56 h-56 rounded-full bg-fuchsia-400/20 blur-3xl" />
+                {/* ===================== HERO DE PERFIL ===================== */}
+        <Card className="p-6 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            {/* Avatar con zoom */}
             <div
-              className="absolute inset-0 opacity-20"
-              style={{
-                backgroundImage: "radial-gradient(rgba(255,255,255,0.6) 1px, transparent 1px)",
-                backgroundSize: "18px 18px",
-              }}
-            />
+              className="relative group cursor-pointer shrink-0 w-fit rounded-full ring-2 ring-border dark:ring-navyCard shadow-md"
+              onClick={() => avatarUrl && setIsZoomOpen(true)}
+              title={avatarUrl ? "Clic para ver en grande" : "Sin foto de perfil"}
+            >
+              <Avatar initials={initialsFromName(fullName)} src={avatarUrl} size={72} />
+              {avatarUrl && (
+                <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <ZoomIn size={20} className="text-white" />
+                </div>
+              )}
+            </div>
+
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-xl font-bold text-ink dark:text-white font-display leading-tight truncate">
+                  {fullName}
+                </h3>
+                <Pill tone={isAdmin ? "blue" : "gray"} icon={isAdmin ? ShieldCheck : undefined}>
+                  {isAdmin ? "Administrador" : "Usuario"}
+                </Pill>
+              </div>
+              <p className="text-xs text-muted dark:text-faint font-body mt-0.5">@{username}</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center justify-center gap-2 text-xs font-semibold font-body px-4 py-2.5 rounded-xl border border-border dark:border-navyCard text-ink dark:text-white hover:bg-bg dark:hover:bg-navyCard transition-colors cursor-pointer w-fit"
+            >
+              <Camera size={14} /> Cambiar foto
+            </button>
           </div>
 
-          <div className="px-6 pb-6">
-            <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-10">
-              {/* Avatar con zoom */}
+          {/* Datos rápidos */}
+          <div className="grid grid-cols-3 gap-3 mt-6">
+            {[
+              { icon: ShieldCheck, label: "Rol", value: isAdmin ? "Admin" : "Usuario" },
+              { icon: Layers, label: "Niveles", value: orgLoading ? "—" : nivelesValidos },
+              { icon: Users, label: "Equipo", value: loading ? "—" : team.length },
+            ].map(({ icon: Icon, label, value }) => (
               <div
-                className="relative group cursor-pointer shrink-0 w-fit rounded-full ring-4 ring-white dark:ring-navy shadow-xl"
-                onClick={() => avatarUrl && setIsZoomOpen(true)}
-                title={avatarUrl ? "Clic para ver en grande" : "Sin foto de perfil"}
+                key={label}
+                className="flex items-center gap-3 rounded-xl border border-border dark:border-navyCard bg-bg/60 dark:bg-navyDeep/50 px-3.5 py-3"
               >
-                <Avatar initials={initialsFromName(fullName)} src={avatarUrl} size={84} />
-                {avatarUrl && (
-                  <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <ZoomIn size={20} className="text-white" />
-                  </div>
-                )}
-              </div>
-
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-
-              <div className="flex-1 min-w-0 sm:pb-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-xl font-bold text-ink dark:text-white font-display leading-tight truncate">
-                    {fullName}
-                  </h3>
-                  <Pill tone={isAdmin ? "blue" : "gray"} icon={isAdmin ? ShieldCheck : undefined}>
-                    {isAdmin ? "Administrador" : "Usuario"}
-                  </Pill>
+                <div className="w-8 h-8 rounded-lg bg-blueSoft dark:bg-blue/20 flex items-center justify-center shrink-0">
+                  <Icon size={15} className="text-blue dark:text-blue-400" />
                 </div>
-                <p className="text-xs text-muted dark:text-faint font-body mt-0.5">@{username}</p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center justify-center gap-2 text-xs font-semibold font-body px-4 py-2.5 rounded-xl border border-border dark:border-navyCard text-ink dark:text-white hover:bg-bg dark:hover:bg-navyCard transition-colors cursor-pointer w-fit"
-              >
-                <Camera size={14} /> Cambiar foto
-              </button>
-            </div>
-
-            {/* Datos rápidos */}
-            <div className="grid grid-cols-3 gap-3 mt-6">
-              {[
-                { icon: ShieldCheck, label: "Rol", value: isAdmin ? "Admin" : "Usuario" },
-                { icon: Layers, label: "Niveles", value: orgLoading ? "—" : nivelesValidos },
-                { icon: Users, label: "Equipo", value: loading ? "—" : team.length },
-              ].map(({ icon: Icon, label, value }) => (
-                <div
-                  key={label}
-                  className="flex items-center gap-3 rounded-xl border border-border dark:border-navyCard bg-bg/60 dark:bg-navyDeep/50 px-3.5 py-3"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-blueSoft dark:bg-blue/20 flex items-center justify-center shrink-0">
-                    <Icon size={15} className="text-blue dark:text-blue-400" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] uppercase tracking-wider text-muted dark:text-faint font-body">{label}</p>
-                    <p className="text-sm font-bold text-ink dark:text-white font-display truncate">{value}</p>
-                  </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-wider text-muted dark:text-faint font-body">{label}</p>
+                  <p className="text-sm font-bold text-ink dark:text-white font-display truncate">{value}</p>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         </Card>
-
         {/* ===================== GRID PRINCIPAL ===================== */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* -------- Columna izquierda: Organización -------- */}
