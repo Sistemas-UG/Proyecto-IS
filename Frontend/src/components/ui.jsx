@@ -1,22 +1,3 @@
-// Marca del logo: molinete de 3 pétalos en degradado azul-morado,
-// recreado como SVG propio (sin depender de ningún ícono de terceros).
-const LogoMark = ({ size = 32 }) => (
-  <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="smartflowLogoGrad" x1="2" y1="2" x2="30" y2="30" gradientUnits="userSpaceOnUse">
-        <stop offset="0%" stopColor="#6366F1" />
-        <stop offset="55%" stopColor="#5B5FEF" />
-        <stop offset="100%" stopColor="#9333EA" />
-      </linearGradient>
-    </defs>
-    <g fill="url(#smartflowLogoGrad)">
-      <path d="M16 3C16 3 21.5 8.4 21.5 13.2C21.5 16.07 19.07 18.4 16 18.4C12.93 18.4 10.5 16.07 10.5 13.2C10.5 8.4 16 3 16 3Z" transform="rotate(0 16 16)" />
-      <path d="M16 3C16 3 21.5 8.4 21.5 13.2C21.5 16.07 19.07 18.4 16 18.4C12.93 18.4 10.5 16.07 10.5 13.2C10.5 8.4 16 3 16 3Z" transform="rotate(120 16 16)" opacity="0.85" />
-      <path d="M16 3C16 3 21.5 8.4 21.5 13.2C21.5 16.07 19.07 18.4 16 18.4C12.93 18.4 10.5 16.07 10.5 13.2C10.5 8.4 16 3 16 3Z" transform="rotate(240 16 16)" opacity="0.7" />
-    </g>
-  </svg>
-);
-
 const TONE = {
   green: "bg-greenSoft text-green dark:bg-green/20 dark:text-emerald-400",
   amber: "bg-amberSoft text-amber dark:bg-amber/20 dark:text-amber-400",
@@ -56,9 +37,13 @@ export const Avatar = ({ initials, src, tone = "bg-blue", size = 34, className =
   );
 };
 
-export const Logo = ({ light }) => (
-  <div className="flex items-center gap-2">
-    <LogoMark size={32} />
+export const Logo = ({ light, className = "" }) => (
+  <div className={`flex items-center gap-2.5 shrink-0 ${className}`}>
+    <img
+      src="/logo.png"
+      alt="SmartFlow AI"
+      className="h-8 w-auto object-contain transition-transform hover:scale-105"
+    />
     <span className={`text-[16px] font-bold tracking-tight font-display ${light ? "text-white" : "text-ink dark:text-white"}`}>
       SmartFlow{" "}
       <span
