@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
-  LayoutGrid, // Nuevo icono para Dashboard
-  GitFork,    // Nuevo icono para Mis Flujos
+  LayoutGrid,
+  GitFork,
   PlusCircle,
   BarChart3,
   Settings,
@@ -50,7 +50,6 @@ export default function AppShell({ children }) {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
 
-  // Estado para la barra lateral (mantiene preferencia al navegar o recargar)
   const [collapsed, setCollapsed] = useState(() => {
     return localStorage.getItem("smartflow_sidebar_collapsed") === "true";
   });
@@ -74,13 +73,13 @@ export default function AppShell({ children }) {
     <div className="w-full min-h-screen flex bg-bg dark:bg-navyDeep font-body transition-colors">
       {/* Sidebar Colapsable */}
       <aside
-        className={`shrink-0 flex flex-col justify-between py-6 px-3 transition-all duration-300 ease-in-out relative z-20 bg-white dark:bg-navy border-r border-border dark:border-navyCard ${
+        className={`shrink-0 flex flex-col justify-between py-6 px-3 transition-all duration-300 ease-in-out relative z-20 bg-white dark:bg-navy border-r border-border dark:border-navyCard overflow-hidden ${
           collapsed ? "w-[68px]" : "w-[220px]"
         }`}
       >
         <div>
-          {/* Encabezado: Botón de 3 Líneas a la izquierda + Logo */}
-          <div className={`flex items-center mb-8 gap-3 ${collapsed ? "justify-center flex-col" : "justify-start px-1"}`}>
+          {/* Encabezado: Menú + Logo ajustados sin desbordamiento */}
+          <div className={`flex items-center mb-8 gap-2 w-full overflow-hidden ${collapsed ? "justify-center flex-col" : "justify-start px-1"}`}>
             <button
               type="button"
               onClick={toggleSidebar}
