@@ -203,7 +203,7 @@ export default function Dashboard() {
   return (
     <AppShell>
       <TopBar
-        title={`¡Bienvenido/a, ${user?.username || user?.name || "usuario"}! 👋`}
+        title={`¡Bienvenido/a, ${user?.username || user?.name || "usuario"}! `}
         subtitle="Aquí tienes el resumen de la actividad de tus procesos."
       />
 
