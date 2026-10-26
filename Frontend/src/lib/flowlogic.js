@@ -138,10 +138,7 @@ export const enrichFlows = (flows) => {
   });
 };
 
-// ---------------------------------------------------------------------
-// Flujos que necesitan atención (recibe flujos ya enriquecidos)
-// Prioridad = días sin actividad + peso por pasos + bonus si tiene insight
-// ---------------------------------------------------------------------
+
 export const getFlujosAtencion = (enrichedFlows, limit = 3) =>
   enrichedFlows
     .filter((f) => f.estado === "Activo" && f.diasSinActividad >= DIAS_ATENCION)
