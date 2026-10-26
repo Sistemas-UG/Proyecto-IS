@@ -3,6 +3,7 @@ export const DIAS_ATENCION = 7; // desde aquí un flujo activo "requiere atenci�
 export const DIAS_INACTIVO = 30; // desde aquí se considera "inactivo"
 
 const ACTIVITY_KEY = "smartflow_flow_activity";
+const STATUS_KEY = "smartflow_flow_status";
 
 // ---------------------------------------------------------------------
 // Registro local de última actividad por flujo { [id]: timestamp }
@@ -27,12 +28,45 @@ export const touchFlow = (id) => {
   }
 };
 
-// Limpia el registro de un flujo eliminado
+// ---------------------------------------------------------------------
+// Estado elegido por el usuario { [id]: "Activo" | "Completado" }
+// Se guarda localmente para que no se pierda si el backend falla.
+// ---------------------------------------------------------------------
+const readStatus = () => {
+  try {
+    return JSON.parse(localStorage.getItem(STATUS_KEY)) || {};
+  } catch {
+    return {};
+  }
+};
+
+export const setFlowStatus = (id, estado) => {
+  if (id === undefined || id === null) return;
+  try {
+    const map = readStatus();
+    map[id] = estado;
+    localStorage.setItem(STATUS_KEY, JSON.stringify(map));
+  } catch {
+    /* noop */
+  }
+};
+
+// Aplica los estados guardados localmente sobre la lista que llega del backend
+export const applyStatusOverrides = (flows) => {
+  const map = readStatus();
+  return flows.map((f) => (map[f.id] ? { ...f, estado: map[f.id] } : f));
+};
+
+// Limpia el registro de un flujo eliminado (actividad + estado)
 export const forgetFlow = (id) => {
   try {
-    const map = readActivity();
-    delete map[id];
-    localStorage.setItem(ACTIVITY_KEY, JSON.stringify(map));
+    const activity = readActivity();
+    delete activity[id];
+    localStorage.setItem(ACTIVITY_KEY, JSON.stringify(activity));
+
+    const status = readStatus();
+    delete status[id];
+    localStorage.setItem(STATUS_KEY, JSON.stringify(status));
   } catch {
     /* noop */
   }
@@ -138,7 +172,10 @@ export const enrichFlows = (flows) => {
   });
 };
 
-
+// ---------------------------------------------------------------------
+// Flujos que necesitan atención (recibe flujos ya enriquecidos)
+// Solo Activos con DIAS_ATENCION+ días sin movimiento, por prioridad
+// ---------------------------------------------------------------------
 export const getFlujosAtencion = (enrichedFlows, limit = 3) =>
   enrichedFlows
     .filter((f) => f.estado === "Activo" && f.diasSinActividad >= DIAS_ATENCION)
