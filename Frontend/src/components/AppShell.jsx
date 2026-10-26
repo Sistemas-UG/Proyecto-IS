@@ -69,6 +69,17 @@ export default function AppShell({ children }) {
 
   const visibleNav = NAV.filter((item) => !item.adminOnly || user?.role === "admin");
 
+  const menuButton = (
+    <button
+      type="button"
+      onClick={toggleSidebar}
+      title={collapsed ? "Expandir menú" : "Ocultar menú"}
+      className="p-1.5 rounded-lg text-muted dark:text-faint hover:text-ink dark:hover:text-white hover:bg-bg dark:hover:bg-navyCard transition-colors cursor-pointer shrink-0"
+    >
+      <Menu size={18} />
+    </button>
+  );
+
   return (
     <div className="w-full min-h-screen flex bg-bg dark:bg-navyDeep font-body transition-colors">
       {/* Sidebar Colapsable */}
@@ -78,19 +89,18 @@ export default function AppShell({ children }) {
         }`}
       >
         <div>
-          {/* Encabezado: Menú + Logo ajustados sin desbordamiento */}
-          <div className={`flex items-center mb-8 gap-2 w-full overflow-hidden ${collapsed ? "justify-center flex-col" : "justify-start px-1"}`}>
-            <button
-              type="button"
-              onClick={toggleSidebar}
-              title={collapsed ? "Expandir menú" : "Ocultar menú"}
-              className="p-1.5 rounded-lg text-muted dark:text-faint hover:text-ink dark:hover:text-white hover:bg-bg dark:hover:bg-navyCard transition-colors cursor-pointer shrink-0"
-            >
-              <Menu size={18} />
-            </button>
-
-            {!collapsed && <Logo />}
-          </div>
+          {/* Encabezado: solo el logo (grande) + botón de menú */}
+          {collapsed ? (
+            <div className="flex flex-col items-center gap-3 mb-8 w-full">
+              {menuButton}
+              <Logo iconOnly size="md" />
+            </div>
+          ) : (
+            <div className="flex items-center justify-between mb-8 w-full px-1">
+              <Logo iconOnly size="xl" />
+              {menuButton}
+            </div>
+          )}
 
           {/* Menú de Opciones */}
           <nav className="flex flex-col gap-1">
