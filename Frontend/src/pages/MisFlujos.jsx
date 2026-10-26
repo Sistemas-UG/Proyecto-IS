@@ -163,7 +163,7 @@ export default function MisFlujos() {
           <p className="text-sm text-slate-500 dark:text-slate-400 font-body">
             {loading ? (
               <span className="flex items-center gap-2">
-                <Loader2 size={14} className="animate-spin text-blue-500" /> Cargando flujos...
+                <Loader2 size={14} className="animate-spin text-blue" /> Cargando flujos...
               </span>
             ) : (
               `${filteredFlows.length} flujos registrados`
@@ -172,7 +172,7 @@ export default function MisFlujos() {
 
           <Link
             to="/flujos/nuevo"
-            className="rounded-xl text-sm font-semibold text-white px-4 py-2.5 flex items-center gap-2 font-body bg-blue-600 hover:bg-blue-500 transition-all duration-200 shadow-md shadow-blue-500/20 active:scale-[0.98]"
+            className="rounded-xl text-sm font-semibold text-white px-4 py-2.5 flex items-center gap-2 font-body bg-blue hover:opacity-90 transition-all duration-200 shadow-md shadow-blue/20 active:scale-[0.98]"
           >
             <PlusCircle size={16} /> Nuevo Flujo
           </Link>
@@ -191,7 +191,7 @@ export default function MisFlujos() {
           {/* Filas */}
           {loading ? (
             <div className="py-12 text-center text-xs text-slate-400">
-              <Loader2 size={20} className="animate-spin mx-auto mb-2 text-blue-500" />
+              <Loader2 size={20} className="animate-spin mx-auto mb-2 text-blue" />
               Obteniendo datos...
             </div>
           ) : filteredFlows.length === 0 ? (
@@ -201,78 +201,97 @@ export default function MisFlujos() {
               <p className="text-xs text-slate-400 mt-1">Crea tu primer flujo para comenzar a trabajar.</p>
               <Link
                 to="/flujos/nuevo"
-                className="inline-flex items-center gap-2 mt-4 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                className="inline-flex items-center gap-2 mt-4 text-xs font-semibold text-blue hover:underline"
               >
                 <PlusCircle size={14} /> Crear flujo ahora
               </Link>
             </div>
           ) : (
-            filteredFlows.map((f) => (
-              <div
-                key={f.id}
-                className="grid grid-cols-[2fr_1fr_1fr_1.2fr_0.8fr] items-center px-6 py-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors border-t border-slate-100 dark:border-slate-800/60 first:border-t-0 group"
-              >
-                <div className="flex items-center min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => openFlow(f.id)}
-                    className="text-left text-sm font-semibold text-slate-900 dark:text-white font-body group-hover:text-blue-500 transition-colors cursor-pointer truncate"
+            filteredFlows.map((f) => {
+              const completado = f.estado === "Completado";
+              return (
+                <div
+                  key={f.id}
+                  className="grid grid-cols-[2fr_1fr_1fr_1.2fr_0.8fr] items-center px-6 py-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors border-t border-slate-100 dark:border-slate-800/60 first:border-t-0 group"
+                >
+                  <div className={`flex items-center min-w-0 transition-opacity ${completado ? "opacity-60" : ""}`}>
+                    <button
+                      type="button"
+                      onClick={() => openFlow(f.id)}
+                      className={`text-left text-sm font-semibold text-slate-900 dark:text-white font-body group-hover:text-blue transition-colors cursor-pointer truncate ${
+                        completado ? "line-through decoration-slate-400" : ""
+                      }`}
+                    >
+                      {f.nombre}
+                    </button>
+                  </div>
+
+                  <span
+                    className={`text-xs text-slate-500 dark:text-slate-400 font-body font-mono transition-opacity ${
+                      completado ? "opacity-60" : ""
+                    }`}
                   >
-                    {f.nombre}
-                  </button>
+                    {f.fecha}
+                  </span>
+
+                  <span
+                    className={`text-sm text-slate-600 dark:text-slate-300 font-body font-medium transition-opacity ${
+                      completado ? "opacity-60" : ""
+                    }`}
+                  >
+                    {f.pasos} {f.pasos === 1 ? "paso" : "pasos"}
+                  </span>
+
+                  {/* Botón clicable de estado: alterna Activo <-> Completado */}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleStatus(f)}
+                      disabled={updatingStatusId === f.id}
+                      title={
+                        completado
+                          ? "Haz clic para reactivar el flujo"
+                          : `Sin actividad hace ${f.diasSinActividad} ${
+                              f.diasSinActividad === 1 ? "día" : "días"
+                            } · clic para marcar como completado`
+                      }
+                      className="hover:scale-105 active:scale-95 transition-transform cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap"
+                    >
+                      {updatingStatusId === f.id ? (
+                        <Loader2 size={13} className="animate-spin text-blue" />
+                      ) : (
+                        <Pill tone={f.estadoTone}>
+                          {f.estadoLabel === "Completado" && <CheckCircle2 size={11} className="inline mr-1" />}
+                          {f.estadoLabel === "Requiere atención" && (
+                            <AlertTriangle size={11} className="inline mr-1" />
+                          )}
+                          {f.estadoLabel}
+                        </Pill>
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFlowToDelete(f)}
+                      title="Eliminar flujo"
+                      aria-label={`Eliminar ${f.nombre}`}
+                      className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openFlow(f.id)}
+                      className="flex items-center gap-1 text-xs font-semibold text-blue hover:translate-x-1 transition-transform font-body cursor-pointer"
+                    >
+                      Abrir <ChevronRight size={14} />
+                    </button>
+                  </div>
                 </div>
-
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-body font-mono">{f.fecha}</span>
-
-                <span className="text-sm text-slate-600 dark:text-slate-300 font-body font-medium">
-                  {f.pasos} {f.pasos === 1 ? "paso" : "pasos"}
-                </span>
-
-                {/* Botón clicable de estado: alterna Activo <-> Completado */}
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => handleToggleStatus(f)}
-                    disabled={updatingStatusId === f.id}
-                    title={
-                      f.estado === "Completado"
-                        ? "Haz clic para reactivar el flujo"
-                        : `Sin actividad hace ${f.diasSinActividad} ${f.diasSinActividad === 1 ? "día" : "días"} · clic para marcar como completado`
-                    }
-                    className="hover:scale-105 active:scale-95 transition-transform cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap"
-                  >
-                    {updatingStatusId === f.id ? (
-                      <Loader2 size={13} className="animate-spin text-blue-500" />
-                    ) : (
-                      <Pill tone={f.estadoTone}>
-                        {f.estadoLabel === "Completado" && <CheckCircle2 size={11} className="inline mr-1" />}
-                        {f.estadoLabel === "Requiere atención" && <AlertTriangle size={11} className="inline mr-1" />}
-                        {f.estadoLabel}
-                      </Pill>
-                    )}
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFlowToDelete(f)}
-                    title="Eliminar flujo"
-                    aria-label={`Eliminar ${f.nombre}`}
-                    className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openFlow(f.id)}
-                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:translate-x-1 transition-transform font-body cursor-pointer"
-                  >
-                    Abrir <ChevronRight size={14} />
-                  </button>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </Card>
       </div>
