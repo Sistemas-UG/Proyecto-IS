@@ -85,19 +85,18 @@ export default function AppShell({ children }) {
       {/* Sidebar Colapsable */}
       <aside
         className={`shrink-0 flex flex-col justify-between py-6 px-3 transition-all duration-300 ease-in-out relative z-20 bg-white dark:bg-navy border-r border-border dark:border-navyCard overflow-hidden ${
-          collapsed ? "w-[68px]" : "w-[220px]"
+          collapsed ? "w-[68px]" : "w-[240px]"
         }`}
       >
         <div>
-          {/* Encabezado: solo el logo (grande) + botón de menú */}
+          {/* Encabezado:
+              - Abierto: logo completo (dibujo + "SmartFlow AI") como en el login + botón de menú
+              - Colapsado: solo el botón de menú, sin logo */}
           {collapsed ? (
-            <div className="flex flex-col items-center gap-3 mb-8 w-full">
-              {menuButton}
-              <Logo iconOnly size="md" />
-            </div>
+            <div className="flex justify-center mb-8 w-full">{menuButton}</div>
           ) : (
-            <div className="flex items-center justify-between mb-8 w-full px-1">
-              <Logo iconOnly size="xl" />
+            <div className="flex items-center justify-between gap-2 mb-8 w-full px-1">
+              <Logo size="md" />
               {menuButton}
             </div>
           )}
