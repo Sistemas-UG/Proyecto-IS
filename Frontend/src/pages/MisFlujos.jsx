@@ -15,7 +15,7 @@ import AppShell, { TopBar } from "../components/AppShell";
 import { Card, Pill } from "../components/ui";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
-import { normalizeFlow, enrichFlows, touchFlow, forgetFlow } from "../lib/flowLogic";
+import { normalizeFlow, enrichFlows, touchFlow, forgetFlow } from "../lib/flowlogic";
 
 export default function MisFlujos() {
   const { user } = useAuth();

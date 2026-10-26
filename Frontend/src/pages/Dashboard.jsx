@@ -26,7 +26,7 @@ import {
   forgetFlow,
   DIAS_ATENCION,
   DIAS_INACTIVO,
-} from "../lib/flowLogic";
+} from "../lib/flowlogic";
 
 const KPI_META = {
   flujosActivos: { label: "Flujos en sistema", icon: Gauge, tone: "text-blue-500" },
