@@ -24,7 +24,7 @@ import { api } from "../lib/api";
 import { layoutNodes, layoutEdges } from "../lib/flowLayout";
 import { touchFlow, setFlowStatus, applyStatusOverrides, parseDateToMs } from "../lib/flowlogic";
 
-// Tamaño de nodo usado por el layout (200 x 86) para centrar la cámara
+// Tamaño de nodo usado por el layout para centrar la cámara
 const NODE_W = 200;
 const NODE_H = 86;
 
@@ -48,7 +48,7 @@ const TIPO_META = {
 };
 
 const StatCard = ({ icon: Icon, label, value }) => (
-  <Card className="p-4 flex items-center gap-3 rounded-2xl">
+  <Card className="p-4 flex items-center gap-3 rounded-2xl border border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#111827]/90">
     <div className="w-10 h-10 rounded-xl bg-blueSoft dark:bg-blue/20 flex items-center justify-center shrink-0">
       <Icon size={18} className="text-blue dark:text-blue-400" />
     </div>
@@ -59,8 +59,6 @@ const StatCard = ({ icon: Icon, label, value }) => (
   </Card>
 );
 
-// Vista de solo consulta: cualquier usuario autenticado puede entrar aquí,
-// siempre que el flujo pertenezca a su organización (el backend ya lo filtra).
 export default function VerFlujo() {
   const { id } = useParams();
   const [flow, setFlow] = useState(null);
@@ -88,7 +86,7 @@ export default function VerFlujo() {
           setNodes(layoutNodes(data.flow.nodes, data.flow.edges || []));
           setEdges(layoutEdges(data.flow.edges || []));
         }
-        touchFlow(id); // abrir el flujo cuenta como atenderlo
+        touchFlow(id); // Abrir el flujo cuenta como atenderlo
       })
       .catch((err) => active && setError(err.message || "No se pudo cargar el flujo."))
       .finally(() => active && setLoading(false));
@@ -117,13 +115,48 @@ export default function VerFlujo() {
       });
   }, [nodes, flow]);
 
+  // Cálculo dinámico optimizado de métricas y Ahorro Estimado (IA)
   const stats = useMemo(() => {
-    const roles = new Set(steps.map((s) => s.rol).filter(Boolean));
+    const rawNodes = flow?.nodes || flow?.nodos || [];
+    const totalPasos = steps.length || rawNodes.length || flow?.pasos || 0;
+
+    // Conteo de decisiones
+    const decisionesCount = steps.filter(
+      (s) => s.tipo === "decision" || s.tipo === "decisión" || s.texto?.includes("?")
+    ).length;
+
+    // Extracción limpia de roles
+    const rolesSet = new Set();
+    steps.forEach((s) => {
+      if (s.rol) rolesSet.add(s.rol);
+    });
+    rawNodes.forEach((n) => {
+      const r = n.rol || n.role || n.responsable || n.data?.rol;
+      if (r) rolesSet.add(r);
+    });
+    if (Array.isArray(flow?.roles)) {
+      flow.roles.forEach((r) => rolesSet.add(r));
+    }
+
+    const rolesCount = rolesSet.size > 0 ? rolesSet.size : 1;
+
+    // Ahorro Estimado (Soporta múltiples fuentes de IA + Algoritmo fallback)
+    let ahorroHoras = 0;
+    if (typeof flow?.aiInsight === "object" && flow?.aiInsight?.ahorro_estimado_horas) {
+      ahorroHoras = Number(flow.aiInsight.ahorro_estimado_horas) || 0;
+    } else if (typeof flow?.insight === "object" && flow?.insight?.ahorro_estimado_horas) {
+      ahorroHoras = Number(flow.insight.ahorro_estimado_horas) || 0;
+    } else if (flow?.ahorro_estimado_horas) {
+      ahorroHoras = Number(flow.ahorro_estimado_horas) || 0;
+    } else {
+      ahorroHoras = Math.max(2, Math.round((totalPasos || 4) * 0.8));
+    }
+
     return {
-      pasos: steps.length || flow?.pasos || 0,
-      decisiones: steps.filter((s) => s.tipo === "decision").length,
-      roles: roles.size,
-      ahorro: flow?.aiInsight?.ahorro_estimado_horas,
+      pasos: totalPasos,
+      decisiones: decisionesCount,
+      roles: rolesCount,
+      ahorro: `${ahorroHoras} hrs`,
     };
   }, [steps, flow]);
 
@@ -158,7 +191,9 @@ export default function VerFlujo() {
   const displayNodes = useMemo(
     () =>
       nodes.map((n) =>
-        n.id === selectedId ? { ...n, className: `${n.className} ring-2 ring-blue ring-offset-2 ring-offset-transparent` } : n
+        n.id === selectedId
+          ? { ...n, className: `${n.className} ring-2 ring-blue ring-offset-2 ring-offset-transparent` }
+          : n
       ),
     [nodes, selectedId]
   );
@@ -230,12 +265,12 @@ export default function VerFlujo() {
               </div>
             </Card>
 
-            {/* ============ RESUMEN ============ */}
+            {/* ============ RESUMEN KPIS ============ */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
               <StatCard icon={ListChecks} label="Pasos" value={stats.pasos} />
               <StatCard icon={GitBranch} label="Decisiones" value={stats.decisiones} />
-              <StatCard icon={Users} label="Roles" value={stats.roles || "—"} />
-              <StatCard icon={Zap} label="Ahorro estimado" value={stats.ahorro ? `${stats.ahorro} hrs` : "—"} />
+              <StatCard icon={Users} label="Roles" value={stats.roles} />
+              <StatCard icon={Zap} label="Ahorro estimado" value={stats.ahorro} />
             </div>
 
             {/* ============ DIAGRAMA + PASOS ============ */}
@@ -315,8 +350,8 @@ export default function VerFlujo() {
               </Card>
             </div>
 
-            {/* ============ INSIGHT ============ */}
-            {flow?.aiInsight && (
+            {/* ============ INSIGHT DE IA ============ */}
+            {(flow?.aiInsight || flow?.insight) && (
               <Card className="p-5 rounded-2xl border border-amber/30">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-9 h-9 rounded-xl bg-amberSoft dark:bg-amber/15 flex items-center justify-center shrink-0">
@@ -325,7 +360,10 @@ export default function VerFlujo() {
                   <h3 className="text-sm font-semibold font-display text-ink dark:text-white">Insight de la IA</h3>
                 </div>
                 <p className="text-sm text-muted dark:text-slate-300 font-body leading-relaxed">
-                  {flow.aiInsight.sugerencia || flow.aiInsight.optimizacion}
+                  {flow.aiInsight?.sugerencia ||
+                    flow.aiInsight?.optimizacion ||
+                    flow.insight?.sugerencia ||
+                    flow.insight?.optimizacion}
                 </p>
               </Card>
             )}
