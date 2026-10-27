@@ -15,7 +15,14 @@ import AppShell, { TopBar } from "../components/AppShell";
 import { Card, Pill } from "../components/ui";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
-import { normalizeFlow, enrichFlows, touchFlow, forgetFlow } from "../lib/flowlogic";
+import {
+  normalizeFlow,
+  enrichFlows,
+  touchFlow,
+  forgetFlow,
+  setFlowStatus,
+  applyStatusOverrides,
+} from "../lib/flowlogic";
 
 export default function MisFlujos() {
   const { user } = useAuth();
@@ -40,7 +47,7 @@ export default function MisFlujos() {
       .then((res) => {
         if (!cancelled) {
           const rawList = Array.isArray(res) ? res : res?.flows || res?.data || [];
-          const normalized = rawList.map(normalizeFlow);
+          const normalized = applyStatusOverrides(rawList.map(normalizeFlow));
           normalized.sort((a, b) => b.rawTimestamp - a.rawTimestamp);
           setFlows(normalized);
           localStorage.setItem("smartflow_cached_flows", JSON.stringify(normalized));
@@ -67,21 +74,22 @@ export default function MisFlujos() {
     navigate(`/flujos/${id}`);
   };
 
-  // --- CAMBIO OPTIMISTA DE ESTADO (Activo <-> Completado) ---
+  // --- CAMBIO DE ESTADO (Activo <-> Completado) ---
+  // Se guarda localmente de inmediato; el backend se intenta actualizar,
+  // pero si falla ya NO se revierte el cambio.
   const handleToggleStatus = async (flow) => {
-    const estadoOriginal = flow.estado;
-    const nuevoEstado = estadoOriginal === "Completado" ? "Activo" : "Completado";
+    const nuevoEstado = flow.estado === "Completado" ? "Activo" : "Completado";
 
-    // Cambiar el estado también reinicia el contador de actividad
     touchFlow(flow.id);
+    setFlowStatus(flow.id, nuevoEstado);
 
     setFlows((prev) => {
       const updated = prev.map((item) => (item.id === flow.id ? { ...item, estado: nuevoEstado } : item));
       localStorage.setItem("smartflow_cached_flows", JSON.stringify(updated));
       return updated;
     });
-    setUpdatingStatusId(flow.id);
 
+    setUpdatingStatusId(flow.id);
     try {
       if (typeof api.updateFlow === "function") {
         await api.updateFlow(flow.id, { estado: nuevoEstado });
@@ -89,12 +97,7 @@ export default function MisFlujos() {
         await api.updateFlowStatus(flow.id, nuevoEstado);
       }
     } catch (err) {
-      console.error("Error al guardar estado en el backend:", err);
-      setFlows((prev) => {
-        const reverted = prev.map((item) => (item.id === flow.id ? { ...item, estado: estadoOriginal } : item));
-        localStorage.setItem("smartflow_cached_flows", JSON.stringify(reverted));
-        return reverted;
-      });
+      console.warn("No se pudo guardar el estado en el backend (se mantiene localmente):", err);
     } finally {
       setUpdatingStatusId(null);
     }
@@ -126,12 +129,20 @@ export default function MisFlujos() {
   };
 
   // Filtrado reactivo por nombre o estado (busca también por el estado efectivo)
-  const filteredFlows = enrichedFlows.filter(
-    (f) =>
-      f.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      f.estado?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      f.estadoLabel?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredFlows = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+    const matches = enrichedFlows.filter(
+      (f) =>
+        f.nombre?.toLowerCase().includes(q) ||
+        f.estado?.toLowerCase().includes(q) ||
+        f.estadoLabel?.toLowerCase().includes(q)
+    );
+    // Activos primero, completados al final (se conserva el orden por fecha dentro de cada grupo)
+    return [
+      ...matches.filter((f) => f.estado !== "Completado"),
+      ...matches.filter((f) => f.estado === "Completado"),
+    ];
+  }, [enrichedFlows, searchTerm]);
 
   return (
     <AppShell>
