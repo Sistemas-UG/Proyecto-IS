@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Sparkles,
   Loader2,
-  ChevronDown,
   FileDown,
   Clock,
   TrendingUp,
@@ -21,7 +20,6 @@ export default function Reportes() {
   const [flows, setFlows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [expandedId, setExpandedId] = useState(null);
   const [query, setQuery] = useState("");
   const [preview, setPreview] = useState(null);
   const [generandoId, setGenerandoId] = useState(null);
@@ -37,7 +35,7 @@ export default function Reportes() {
       .then(([resInsights, resFlows]) => {
         if (cancelled) return;
         setInsights(resInsights.insights || []);
-        
+
         const rawFlows = Array.isArray(resFlows) ? resFlows : resFlows?.flows || resFlows?.data || [];
         setFlows(rawFlows);
       })
@@ -60,9 +58,7 @@ export default function Reportes() {
 
     const q = query.trim().toLowerCase();
 
-    return insights.filter((i) =>
-      (i.titulo || "").toLowerCase().includes(q)
-    );
+    return insights.filter((i) => (i.titulo || "").toLowerCase().includes(q));
   }, [insights, query]);
 
   // --- CÁLCULO SINCRONIZADO DE HORAS (IGUAL QUE EN EL DASHBOARD) ---
@@ -81,7 +77,11 @@ export default function Reportes() {
         let stepsCount = 0;
         let stepsData = f.pasos || f.nodes || f.steps || f.diagrama?.nodes || f.pasos_json || [];
         if (typeof stepsData === "string") {
-          try { stepsData = JSON.parse(stepsData); } catch (e) { stepsData = []; }
+          try {
+            stepsData = JSON.parse(stepsData);
+          } catch (e) {
+            stepsData = [];
+          }
         }
         if (Array.isArray(stepsData)) stepsCount = stepsData.length;
         else if (typeof f.pasos === "number") stepsCount = f.pasos;
@@ -172,26 +172,20 @@ export default function Reportes() {
           {/* Card 1: Reportes Generados */}
           <div className="bg-white dark:bg-navy border border-border dark:border-navyCard rounded-2xl p-5 shadow-sm transition-all hover:border-blue/40">
             <div className="flex items-center gap-2 text-muted dark:text-faint text-xs font-semibold font-body mb-2">
-              <Sparkles size={14} className="text-blue-500" />
+              <Sparkles size={14} className="text-blue" />
               Reportes generados
             </div>
-            <p className="text-2xl font-bold font-display text-ink dark:text-white">
-              {insights.length}
-            </p>
-            <p className="text-[11px] text-muted dark:text-faint mt-1 font-body">
-              Almacenados en el sistema
-            </p>
+            <p className="text-2xl font-bold font-display text-ink dark:text-white">{insights.length}</p>
+            <p className="text-[11px] text-muted dark:text-faint mt-1 font-body">Almacenados en el sistema</p>
           </div>
 
-          {/* Card 2: Horas Ahorradas Totales (100% Sincronizado con el Dashboard) */}
+          {/* Card 2: Horas Ahorradas Totales */}
           <div className="bg-white dark:bg-navy border border-border dark:border-navyCard rounded-2xl p-5 shadow-sm transition-all hover:border-emerald-500/40">
             <div className="flex items-center gap-2 text-muted dark:text-faint text-xs font-semibold font-body mb-2">
               <TrendingUp size={14} className="text-emerald-500" />
               Horas ahorradas totales
             </div>
-            <p className="text-2xl font-bold font-display text-ink dark:text-white">
-              {totalHoras} hrs
-            </p>
+            <p className="text-2xl font-bold font-display text-ink dark:text-white">{totalHoras} hrs</p>
             <p className="text-[11px] text-emerald-500 font-medium mt-1 font-body">
               Suma acumulada de {flows.length} flujos
             </p>
@@ -203,12 +197,8 @@ export default function Reportes() {
               <Zap size={14} className="text-amber-500" />
               Promedio por proceso
             </div>
-            <p className="text-2xl font-bold font-display text-ink dark:text-white">
-              {promedioHoras} hrs
-            </p>
-            <p className="text-[11px] text-muted dark:text-faint mt-1 font-body">
-              Ahorro estimado medio
-            </p>
+            <p className="text-2xl font-bold font-display text-ink dark:text-white">{promedioHoras} hrs</p>
+            <p className="text-[11px] text-muted dark:text-faint mt-1 font-body">Ahorro estimado medio</p>
           </div>
 
           {/* Card 4: Último generado */}
@@ -223,17 +213,14 @@ export default function Reportes() {
                 : "—"}
             </p>
             <p className="text-[11px] text-muted dark:text-faint truncate mt-1 font-body">
-              {ultimo ? (ultimo.titulo || "Flujo sin nombre") : "Sin actividad reciente"}
+              {ultimo ? ultimo.titulo || "Flujo sin nombre" : "Sin actividad reciente"}
             </p>
           </div>
         </div>
 
         {/* Buscador */}
         <div className="relative mb-6">
-          <Search
-            size={15}
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none"
-          />
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -244,16 +231,12 @@ export default function Reportes() {
 
         {loading && (
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted dark:text-faint font-body">
-            <Loader2 size={16} className="animate-spin text-blue-500" />
+            <Loader2 size={16} className="animate-spin text-blue" />
             Cargando reportes de eficiencia…
           </div>
         )}
 
-        {!loading && error && (
-          <p className="text-sm text-red-500 font-body py-10 text-center">
-            {error}
-          </p>
-        )}
+        {!loading && error && <p className="text-sm text-red font-body py-10 text-center">{error}</p>}
 
         {!loading && !error && filtered.length === 0 && (
           <div className="text-center py-16 px-4 space-y-3 max-w-md mx-auto">
@@ -262,9 +245,7 @@ export default function Reportes() {
             </div>
 
             <h3 className="text-sm font-bold text-ink dark:text-white font-body">
-              {insights.length === 0
-                ? "Todavía no hay reportes"
-                : "Sin resultados"}
+              {insights.length === 0 ? "Todavía no hay reportes" : "Sin resultados"}
             </h3>
 
             <p className="text-xs text-muted dark:text-faint leading-relaxed font-body">
@@ -289,18 +270,14 @@ export default function Reportes() {
             <div className="flex h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-navy shadow-2xl">
               <div className="flex items-center justify-between gap-3 border-b border-border dark:border-navyCard bg-white dark:bg-navy p-4">
                 <div className="min-w-0">
-                  <h2 className="truncate text-sm font-semibold text-ink dark:text-white">
-                    {preview.titulo}
-                  </h2>
-                  <p className="text-xs text-muted dark:text-faint">
-                    Vista previa del PDF · Informe ejecutivo
-                  </p>
+                  <h2 className="truncate text-sm font-semibold text-ink dark:text-white">{preview.titulo}</h2>
+                  <p className="text-xs text-muted dark:text-faint">Vista previa del PDF · Informe ejecutivo</p>
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
                   <button
                     onClick={descargarPDF}
-                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition-colors"
+                    className="inline-flex items-center gap-2 rounded-lg bg-blue px-3 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
                   >
                     <FileDown size={14} />
                     Descargar PDF
@@ -316,11 +293,7 @@ export default function Reportes() {
                 </div>
               </div>
 
-              <iframe
-                title={`Vista previa ${preview.titulo}`}
-                src={preview.url}
-                className="min-h-0 flex-1 bg-slate-100"
-              />
+              <iframe title={`Vista previa ${preview.titulo}`} src={preview.url} className="min-h-0 flex-1 bg-slate-100" />
             </div>
           </div>
         )}
@@ -329,7 +302,6 @@ export default function Reportes() {
         {!loading && !error && filtered.length > 0 && (
           <div className="space-y-3">
             {filtered.map((insight) => {
-              const isOpen = expandedId === insight.id;
               const ahorroVal = insight.ahorroEstimadoHoras ?? insight.ahorro_estimado_horas;
 
               return (
@@ -338,27 +310,19 @@ export default function Reportes() {
                   className="rounded-2xl border border-border dark:border-navyCard bg-white dark:bg-navy overflow-hidden transition-colors"
                 >
                   <div className="flex items-center justify-between gap-3 px-5 py-4">
-                                        <button
-                      onClick={() =>
-                        setExpandedId(isOpen ? null : insight.id)
-                      }
-                      className="flex-1 flex items-center gap-3 text-left cursor-pointer min-w-0"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-ink dark:text-white truncate">
-                          {insight.titulo || "Flujo sin nombre"}
-                        </p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-ink dark:text-white truncate">
+                        {insight.titulo || "Flujo sin nombre"}
+                      </p>
 
-                        <p className="text-[11px] text-muted dark:text-faint">
-                          {insight.generatedEn
-                            ? new Date(insight.generatedEn).toLocaleString("es-GT")
-                            : "Fecha no disponible"}
+                      <p className="text-[11px] text-muted dark:text-faint">
+                        {insight.generatedEn
+                          ? new Date(insight.generatedEn).toLocaleString("es-GT")
+                          : "Fecha no disponible"}
 
-                          {ahorroVal != null &&
-                            ` · Ahorro estimado: ${ahorroVal}h`}
-                        </p>
-                      </div>
-                    </button>
+                        {ahorroVal != null && ` · Ahorro estimado: ${ahorroVal}h`}
+                      </p>
+                    </div>
 
                     <div className="flex items-center gap-2 shrink-0">
                       <button
@@ -374,31 +338,8 @@ export default function Reportes() {
                         )}
                         <span className="hidden sm:inline">Vista previa</span>
                       </button>
-
-                      <button
-                        onClick={() =>
-                          setExpandedId(isOpen ? null : insight.id)
-                        }
-                        aria-label={isOpen ? "Contraer reporte" : "Expandir reporte"}
-                        className="cursor-pointer text-faint"
-                      >
-                        <ChevronDown
-                          size={16}
-                          className={`transition-transform ${
-                            isOpen ? "rotate-180" : ""
-                          }`}
-                        />
-                      </button>
                     </div>
                   </div>
-
-                  {isOpen && (
-                    <div className="px-5 pb-5 pt-1 border-t border-border dark:border-navyCard">
-                      <p className="text-xs leading-relaxed text-muted dark:text-faint whitespace-pre-wrap font-body">
-                        {insight.reporteTexto}
-                      </p>
-                    </div>
-                  )}
                 </div>
               );
             })}
