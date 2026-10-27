@@ -24,11 +24,9 @@ import { api } from "../lib/api";
 import { layoutNodes, layoutEdges } from "../lib/flowLayout";
 import { touchFlow, setFlowStatus, applyStatusOverrides, parseDateToMs } from "../lib/flowlogic";
 
-// Tamaño de nodo usado por el layout (200 x 86) para centrar la cámara
 const NODE_W = 200;
 const NODE_H = 86;
 
-// Los labels vienen como "Texto del paso (Rol)": separamos el rol
 const splitLabel = (label = "") => {
   const m = label.match(/^(.*?)\s*\(([^()]+)\)\s*$/);
   return m ? { texto: m[1].trim(), rol: m[2].trim() } : { texto: label.trim(), rol: "" };
@@ -47,6 +45,18 @@ const TIPO_META = {
   paso: { icon: Circle, label: "Paso", box: "bg-bg dark:bg-navyCard text-muted dark:text-faint" },
 };
 
+// --- Algoritmo de respaldo para el ahorro estimado ---
+// Si la IA no trajo un ahorro_estimado_horas (flujos manuales, o si el
+// backend no lo calculó), lo estimamos a partir de la estructura del flujo:
+// cada paso automatizado ahorra ~21 min, cada decisión revisada a mano
+// ahorraba ~30 min, y cada rol distinto involucrado representa ~45 min de
+// coordinación/handoff que ya no hace falta.
+const calcularAhorroEstimado = (pasos, decisiones, roles) => {
+  if (!pasos) return 0;
+  const horas = pasos * 0.35 + decisiones * 0.5 + roles * 0.75;
+  return Math.max(0.5, Math.round(horas * 10) / 10);
+};
+
 const StatCard = ({ icon: Icon, label, value }) => (
   <Card className="p-4 flex items-center gap-3 rounded-2xl">
     <div className="w-10 h-10 rounded-xl bg-blueSoft dark:bg-blue/20 flex items-center justify-center shrink-0">
@@ -59,8 +69,6 @@ const StatCard = ({ icon: Icon, label, value }) => (
   </Card>
 );
 
-// Vista de solo consulta: cualquier usuario autenticado puede entrar aquí,
-// siempre que el flujo pertenezca a su organización (el backend ya lo filtra).
 export default function VerFlujo() {
   const { id } = useParams();
   const [flow, setFlow] = useState(null);
@@ -88,7 +96,7 @@ export default function VerFlujo() {
           setNodes(layoutNodes(data.flow.nodes, data.flow.edges || []));
           setEdges(layoutEdges(data.flow.edges || []));
         }
-        touchFlow(id); // abrir el flujo cuenta como atenderlo
+        touchFlow(id);
       })
       .catch((err) => active && setError(err.message || "No se pudo cargar el flujo."))
       .finally(() => active && setLoading(false));
@@ -97,7 +105,6 @@ export default function VerFlujo() {
     };
   }, [id, setNodes, setEdges]);
 
-  // Pasos ordenados de arriba hacia abajo según el layout
   const steps = useMemo(() => {
     const raw = flow?.nodes || [];
     return [...nodes]
@@ -119,13 +126,23 @@ export default function VerFlujo() {
 
   const stats = useMemo(() => {
     const roles = new Set(steps.map((s) => s.rol).filter(Boolean));
+    const decisiones = steps.filter((s) => s.tipo === "decision").length;
+    const pasos = steps.length || flow?.pasos || 0;
+    const ahorroIA = flow?.aiInsight?.ahorro_estimado_horas;
     return {
-      pasos: steps.length || flow?.pasos || 0,
-      decisiones: steps.filter((s) => s.tipo === "decision").length,
+      pasos,
+      decisiones,
       roles: roles.size,
-      ahorro: flow?.aiInsight?.ahorro_estimado_horas,
+      ahorro: ahorroIA ?? calcularAhorroEstimado(pasos, decisiones, roles.size),
+      ahorroEsEstimado: ahorroIA == null,
     };
   }, [steps, flow]);
+
+  // Flujos grandes necesitan más alto para no verse amontonados
+  const diagramHeight = useMemo(() => {
+    if (steps.length <= 14) return 640;
+    return Math.min(920, 420 + steps.length * 18);
+  }, [steps.length]);
 
   const completado = estado === "Completado";
 
@@ -148,13 +165,11 @@ export default function VerFlujo() {
     }
   };
 
-  // Centra el diagrama en el paso elegido
   const focusStep = (s) => {
     setSelectedId(s.id);
     if (rf) rf.setCenter(s.x + NODE_W / 2, s.y + NODE_H / 2, { zoom: 1.1, duration: 600 });
   };
 
-  // Resalta el nodo seleccionado
   const displayNodes = useMemo(
     () =>
       nodes.map((n) =>
@@ -185,7 +200,6 @@ export default function VerFlujo() {
           </p>
         ) : (
           <>
-            {/* ============ CABECERA ============ */}
             <Card className="p-5 rounded-2xl mb-5">
               <div className="flex flex-col md:flex-row md:items-center gap-4">
                 <div className="flex-1 min-w-0">
@@ -230,17 +244,19 @@ export default function VerFlujo() {
               </div>
             </Card>
 
-            {/* ============ RESUMEN ============ */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
               <StatCard icon={ListChecks} label="Pasos" value={stats.pasos} />
               <StatCard icon={GitBranch} label="Decisiones" value={stats.decisiones} />
               <StatCard icon={Users} label="Roles" value={stats.roles || "—"} />
-              <StatCard icon={Zap} label="Ahorro estimado" value={stats.ahorro ? `${stats.ahorro} hrs` : "—"} />
+              <StatCard
+                icon={Zap}
+                label={stats.ahorroEsEstimado ? "Ahorro estimado*" : "Ahorro estimado"}
+                value={stats.ahorro ? `${stats.ahorro} hrs` : "—"}
+              />
             </div>
 
-            {/* ============ DIAGRAMA + PASOS ============ */}
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5 mb-5 items-start">
-              <Card className="h-[640px] overflow-hidden rounded-2xl">
+              <Card className="overflow-hidden rounded-2xl" style={{ height: diagramHeight }}>
                 <ReactFlow
                   nodes={displayNodes}
                   edges={edges}
@@ -251,8 +267,9 @@ export default function VerFlujo() {
                   nodesConnectable={false}
                   elementsSelectable={false}
                   fitView
-                  fitViewOptions={{ padding: 0.12, minZoom: 0.5, maxZoom: 1.1 }}
-                  minZoom={0.2}
+                  fitViewOptions={{ padding: 0.15, minZoom: 0.15, maxZoom: 1.1 }}
+                  minZoom={0.1}
+                  defaultEdgeOptions={{ type: "smoothstep", pathOptions: { borderRadius: 12 } }}
                   proOptions={{ hideAttribution: true }}
                 >
                   <Background gap={22} size={1} color="rgba(148,163,184,0.25)" />
@@ -268,7 +285,7 @@ export default function VerFlujo() {
                 </ReactFlow>
               </Card>
 
-              <Card className="rounded-2xl overflow-hidden flex flex-col h-[640px]">
+              <Card className="rounded-2xl overflow-hidden flex flex-col" style={{ height: diagramHeight }}>
                 <div className="px-4 py-3.5 border-b border-border dark:border-navyCard flex items-center justify-between">
                   <h3 className="text-sm font-semibold font-display text-ink dark:text-white">Pasos del flujo</h3>
                   <span className="text-[11px] font-semibold text-blue dark:text-blue-400 bg-blueSoft dark:bg-blue/20 px-2 py-0.5 rounded-full">
@@ -315,7 +332,6 @@ export default function VerFlujo() {
               </Card>
             </div>
 
-            {/* ============ INSIGHT ============ */}
             {flow?.aiInsight && (
               <Card className="p-5 rounded-2xl border border-amber/30">
                 <div className="flex items-center gap-3 mb-2">

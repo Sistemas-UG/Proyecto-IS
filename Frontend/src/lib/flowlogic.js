@@ -1,13 +1,10 @@
 export const MS_POR_DIA = 1000 * 60 * 60 * 24;
-export const DIAS_ATENCION = 7; // desde aquí un flujo activo "requiere atención"
-export const DIAS_INACTIVO = 30; // desde aquí se considera "inactivo"
+export const DIAS_ATENCION = 7;
+export const DIAS_INACTIVO = 30;
 
 const ACTIVITY_KEY = "smartflow_flow_activity";
 const STATUS_KEY = "smartflow_flow_status";
 
-// ---------------------------------------------------------------------
-// Registro local de última actividad por flujo { [id]: timestamp }
-// ---------------------------------------------------------------------
 const readActivity = () => {
   try {
     return JSON.parse(localStorage.getItem(ACTIVITY_KEY)) || {};
@@ -16,7 +13,6 @@ const readActivity = () => {
   }
 };
 
-// Marca el flujo como "atendido ahora" (abrirlo, revisarlo o cambiar su estado)
 export const touchFlow = (id) => {
   if (id === undefined || id === null) return;
   try {
@@ -28,10 +24,6 @@ export const touchFlow = (id) => {
   }
 };
 
-// ---------------------------------------------------------------------
-// Estado elegido por el usuario { [id]: "Activo" | "Completado" }
-// Se guarda localmente para que no se pierda si el backend falla.
-// ---------------------------------------------------------------------
 const readStatus = () => {
   try {
     return JSON.parse(localStorage.getItem(STATUS_KEY)) || {};
@@ -51,13 +43,11 @@ export const setFlowStatus = (id, estado) => {
   }
 };
 
-// Aplica los estados guardados localmente sobre la lista que llega del backend
 export const applyStatusOverrides = (flows) => {
   const map = readStatus();
   return flows.map((f) => (map[f.id] ? { ...f, estado: map[f.id] } : f));
 };
 
-// Limpia el registro de un flujo eliminado (actividad + estado)
 export const forgetFlow = (id) => {
   try {
     const activity = readActivity();
@@ -72,10 +62,6 @@ export const forgetFlow = (id) => {
   }
 };
 
-// ---------------------------------------------------------------------
-// Fechas
-// ---------------------------------------------------------------------
-// Soporta ISO, YYYY-MM-DD y DD/MM/YYYY
 export const parseDateToMs = (dateStr) => {
   if (!dateStr) return 0;
   if (typeof dateStr === "number") return dateStr;
@@ -95,8 +81,30 @@ export const parseDateToMs = (dateStr) => {
 };
 
 // ---------------------------------------------------------------------
-// Normalización (misma para Dashboard y Mis Flujos)
+// Rol embebido en el label de un paso: "Texto del paso (Rol)"
 // ---------------------------------------------------------------------
+const ROLE_RE = /^(.*?)\s*\(([^()]+)\)\s*$/;
+const extraerRol = (label = "") => {
+  const m = String(label).match(ROLE_RE);
+  return m ? m[2].trim() : "";
+};
+
+// ---------------------------------------------------------------------
+// Algoritmo de ahorro estimado (horas)
+// Se usa como respaldo cuando el flujo no trae un ahorro calculado por la
+// IA (flow.aiInsight / flow.insight). Se basa en la estructura del propio
+// flujo: cada paso automatizado ahorra ~21 min de trabajo manual, cada
+// decisión que antes se revisaba a mano ahorraba ~30 min, y cada rol
+// distinto involucrado representa ~45 min de coordinación/handoff que ya
+// no hace falta. Es el MISMO algoritmo en Mis Flujos, Ver Flujo y el
+// Dashboard, así el total del Dashboard siempre cuadra con el detalle de
+// cada flujo individual.
+export const calcularAhorroEstimado = (pasos = 0, decisiones = 0, roles = 0) => {
+  if (!pasos) return 0;
+  const horas = pasos * 0.35 + decisiones * 0.5 + roles * 0.75;
+  return Math.max(0.5, Math.round(horas * 10) / 10);
+};
+
 export const normalizeFlow = (f) => {
   const rawDate = f.fecha || f.created_at || f.createdAt;
   const timestamp = parseDateToMs(rawDate);
@@ -126,23 +134,35 @@ export const normalizeFlow = (f) => {
     ? f.pasos
     : 0;
 
+  // Decisiones y roles distintos, a partir de los nodos reales (cuando
+  // vienen completos y no solo como número), para alimentar el algoritmo
+  // de ahorro estimado de arriba.
+  let totalDecisiones = 0;
+  let totalRoles = 0;
+  if (Array.isArray(stepsData) && stepsData.length && typeof stepsData[0] === "object") {
+    totalDecisiones = stepsData.filter(
+      (n) => (n.type || n.tipo || n.data?.tipo) === "decision"
+    ).length;
+    const roles = new Set(
+      stepsData.map((n) => extraerRol(n.label || n.data?.label || n.texto || "")).filter(Boolean)
+    );
+    totalRoles = roles.size;
+  }
+
   return {
     id: f.id || f.id_flujo || f._id,
     nombre: f.nombre || f.title || f.name || "Flujo sin nombre",
     fecha: formattedDate,
     rawTimestamp: timestamp,
     pasos: totalPasos,
+    decisiones: totalDecisiones,
+    roles: totalRoles,
     estado: f.estado || f.status || "Activo",
     insight: f.insight || f.diagrama?.insight,
     ahorro_estimado_horas: f.ahorro_estimado_horas,
   };
 };
 
-// ---------------------------------------------------------------------
-// Estado efectivo según días sin actividad
-// Agrega: ultimaActividad, diasSinActividad, estadoLabel, estadoTone
-// (el campo "estado" original NO se modifica)
-// ---------------------------------------------------------------------
 export const enrichFlows = (flows) => {
   const ahora = Date.now();
   const activity = readActivity();
@@ -172,11 +192,6 @@ export const enrichFlows = (flows) => {
   });
 };
 
-// ---------------------------------------------------------------------
-// Flujos que necesitan atención (recibe flujos ya enriquecidos)
-// Los N flujos ACTIVOS con más tiempo sin atender (el más viejo primero).
-// Al revisar o completar uno, sale de la lista y entra el siguiente.
-// ---------------------------------------------------------------------
 export const getFlujosAtencion = (enrichedFlows, limit = 3) =>
   enrichedFlows
     .filter((f) => f.estado === "Activo")

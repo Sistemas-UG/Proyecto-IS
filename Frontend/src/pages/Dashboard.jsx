@@ -26,6 +26,7 @@ import {
   forgetFlow,
   setFlowStatus,
   applyStatusOverrides,
+  calcularAhorroEstimado,
   DIAS_ATENCION,
   DIAS_INACTIVO,
 } from "../lib/flowlogic";
@@ -40,7 +41,6 @@ export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // --- PERSISTENCIA LOCAL DE SESIÓN ---
   const [flows, setFlows] = useState(() => {
     try {
       const saved = localStorage.getItem("smartflow_cached_flows");
@@ -53,15 +53,12 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(() => flows.length === 0);
   const [error, setError] = useState("");
 
-  // Estado para el modal de eliminación
   const [flowToDelete, setFlowToDelete] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
 
-  // Flujos con estado efectivo (según días sin actividad)
   const enrichedFlows = useMemo(() => enrichFlows(flows), [flows]);
 
-  // Los 8 más recientes: activos primero, completados al final
   const recientes = useMemo(() => {
     const top = enrichedFlows.slice(0, 8);
     return [
@@ -76,6 +73,10 @@ export default function Dashboard() {
     const completados = flows.filter((f) => f.estado === "Completado").length;
     const activos = totalFlujos - completados;
 
+    // El total es la SUMA del ahorro de cada flujo individual: si la IA ya
+    // calculó un ahorro para ese flujo se usa ese; si no, se usa el mismo
+    // algoritmo estructural (pasos + decisiones + roles) que ven Mis Flujos
+    // y Ver Flujo, así el número nunca queda descuadrado entre pantallas.
     const horasTotales = flows.reduce((acc, f) => {
       let horas = 0;
       if (typeof f.insight === "object" && f.insight?.ahorro_estimado_horas) {
@@ -83,10 +84,11 @@ export default function Dashboard() {
       } else if (f.ahorro_estimado_horas) {
         horas = Number(f.ahorro_estimado_horas) || 0;
       } else {
-        horas = Math.max(2, Math.round((f.pasos || 4) * 0.8));
+        horas = calcularAhorroEstimado(f.pasos, f.decisiones, f.roles);
       }
       return acc + horas;
     }, 0);
+    const horasTotalesRedondeadas = Math.round(horasTotales * 10) / 10;
 
     const flujosConInsight = flows.filter(
       (f) => f.estado === "Completado" || f.insight || f.ahorro_estimado_horas > 0
@@ -108,7 +110,7 @@ export default function Dashboard() {
       },
       tiempoAhorrado: {
         label: "Tiempo ahorrado total",
-        value: `${horasTotales} hrs`,
+        value: `${horasTotalesRedondeadas} hrs`,
         delta: `Suma acumulada de ${totalFlujos} flujos`,
       },
       scoreOptimizacion: {
@@ -144,9 +146,6 @@ export default function Dashboard() {
     };
   }, []);
 
-  // --- CAMBIO DE ESTADO (Activo <-> Completado) ---
-  // Se guarda localmente de inmediato; el backend se intenta actualizar,
-  // pero si falla ya NO se revierte el cambio.
   const handleToggleStatus = async (flow) => {
     const nuevoEstado = flow.estado === "Completado" ? "Activo" : "Completado";
 
@@ -173,7 +172,6 @@ export default function Dashboard() {
     }
   };
 
-  // --- ELIMINACIÓN DESDE EL MODAL ---
   const confirmDelete = async () => {
     if (!flowToDelete) return;
     setDeletingId(flowToDelete.id);
@@ -192,9 +190,6 @@ export default function Dashboard() {
     }
   };
 
-  // --- FLUJOS QUE NECESITAN ATENCIÓN ---
-  // Los 3 flujos activos más viejos. Al revisar o completar uno,
-  // sale de la lista y entra el siguiente.
   const flujosAtencion = useMemo(() => getFlujosAtencion(enrichedFlows, 3), [enrichedFlows]);
 
   const textoDiasSinActividad = (dias) => {
@@ -203,7 +198,6 @@ export default function Dashboard() {
     return `Sin actividad hace ${dias} días`;
   };
 
-  // Abrir un flujo cuenta como atenderlo
   const openFlow = (id) => {
     touchFlow(id);
     navigate(`/flujos/${id}`);
@@ -225,7 +219,6 @@ export default function Dashboard() {
 
         {error && <p className="text-xs text-red-500 font-body mb-3">Error: {error}</p>}
 
-        {/* --- TARJETAS DE KPIS --- */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
           {Object.entries(kpis).map(([key, k]) => {
             const meta = KPI_META[key] || { label: key, icon: Gauge, tone: "text-blue-500" };
@@ -247,9 +240,7 @@ export default function Dashboard() {
           })}
         </div>
 
-        {/* --- SECCIÓN PRINCIPAL --- */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
-          {/* COLUMNA IZQUIERDA: Mis Flujos Recientes */}
           <Card className="lg:col-span-2 p-5 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md flex flex-col">
             <div className="flex items-center justify-between mb-3 border-b border-slate-100 dark:border-slate-800/60 pb-3">
               <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white font-display">
@@ -295,7 +286,6 @@ export default function Dashboard() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      {/* Estado clicable: alterna Activo <-> Completado */}
                       <button
                         type="button"
                         onClick={() => handleToggleStatus(f)}
@@ -316,7 +306,6 @@ export default function Dashboard() {
                         )}
                       </button>
 
-                      {/* Botón basurero abre el modal */}
                       <button
                         type="button"
                         onClick={() => setFlowToDelete(f)}
@@ -339,9 +328,7 @@ export default function Dashboard() {
             </div>
           </Card>
 
-          {/* COLUMNA DERECHA: IA Insight + Flujos que necesitan atención */}
           <div className="flex flex-col gap-5">
-            {/* TARJETA SUGERENCIA IA */}
             <Card className="relative p-4 overflow-hidden border border-blue-200 dark:border-blue-500/30 shadow-sm rounded-2xl bg-gradient-to-br from-blue-50 via-indigo-50 to-white dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 text-slate-900 dark:text-white flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -389,7 +376,6 @@ export default function Dashboard() {
               </Link>
             </Card>
 
-            {/* TARJETA FLUJOS QUE NECESITAN ATENCIÓN */}
             <Card className="p-4 border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm bg-white dark:bg-[#111827]/90 backdrop-blur-md flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-1.5 mb-0.5">
@@ -461,7 +447,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* --- MODAL DE ELIMINACIÓN DE FLUJO --- */}
       {flowToDelete && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4"
