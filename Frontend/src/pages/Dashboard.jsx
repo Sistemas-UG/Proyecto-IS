@@ -40,6 +40,9 @@ export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // Validación de rol Administrador
+  const isAdmin = user?.role === "admin";
+
   // --- PERSISTENCIA LOCAL DE SESIÓN ---
   const [flows, setFlows] = useState(() => {
     try {
@@ -145,8 +148,6 @@ export default function Dashboard() {
   }, []);
 
   // --- CAMBIO DE ESTADO (Activo <-> Completado) ---
-  // Se guarda localmente de inmediato; el backend se intenta actualizar,
-  // pero si falla ya NO se revierte el cambio.
   const handleToggleStatus = async (flow) => {
     const nuevoEstado = flow.estado === "Completado" ? "Activo" : "Completado";
 
@@ -175,7 +176,7 @@ export default function Dashboard() {
 
   // --- ELIMINACIÓN DESDE EL MODAL ---
   const confirmDelete = async () => {
-    if (!flowToDelete) return;
+    if (!flowToDelete || !isAdmin) return;
     setDeletingId(flowToDelete.id);
     setError("");
     try {
@@ -193,8 +194,6 @@ export default function Dashboard() {
   };
 
   // --- FLUJOS QUE NECESITAN ATENCIÓN ---
-  // Los 3 flujos activos más viejos. Al revisar o completar uno,
-  // sale de la lista y entra el siguiente.
   const flujosAtencion = useMemo(() => getFlujosAtencion(enrichedFlows, 3), [enrichedFlows]);
 
   const textoDiasSinActividad = (dias) => {
@@ -203,7 +202,6 @@ export default function Dashboard() {
     return `Sin actividad hace ${dias} días`;
   };
 
-  // Abrir un flujo cuenta como atenderlo
   const openFlow = (id) => {
     touchFlow(id);
     navigate(`/flujos/${id}`);
@@ -212,7 +210,7 @@ export default function Dashboard() {
   return (
     <AppShell>
       <TopBar
-        title={`¡Bienvenido/a, ${user?.username || user?.name || "usuario"}! `}
+        title={`¡Bienvenido/a, ${user?.username || user?.name || "usuario"}!`}
         subtitle="Aquí tienes el resumen de la actividad de tus procesos."
       />
 
@@ -316,16 +314,18 @@ export default function Dashboard() {
                         )}
                       </button>
 
-                      {/* Botón basurero abre el modal */}
-                      <button
-                        type="button"
-                        onClick={() => setFlowToDelete(f)}
-                        title="Eliminar flujo"
-                        aria-label={`Eliminar ${f.nombre}`}
-                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {/* Botón basurero: SOLO visible para el usuario Admin */}
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => setFlowToDelete(f)}
+                          title="Eliminar flujo"
+                          aria-label={`Eliminar ${f.nombre}`}
+                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -462,7 +462,7 @@ export default function Dashboard() {
       </div>
 
       {/* --- MODAL DE ELIMINACIÓN DE FLUJO --- */}
-      {flowToDelete && (
+      {flowToDelete && isAdmin && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4"
           role="dialog"

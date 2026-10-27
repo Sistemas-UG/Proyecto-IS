@@ -28,12 +28,18 @@ export default function MisFlujos() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // Validación de rol de Administrador
+  const isAdmin =
+    user?.rol === "admin" ||
+    user?.role === "admin" ||
+    user?.esAdmin === true ||
+    user?.tipo === "admin";
+
   const [flows, setFlows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [error, setError] = useState("");
 
-  // Estado para el flujo seleccionado a eliminar y carga de eliminación
   const [flowToDelete, setFlowToDelete] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
@@ -65,18 +71,13 @@ export default function MisFlujos() {
     };
   }, []);
 
-  // Flujos con estado efectivo (Activo / Requiere atención / Inactivo / Completado)
   const enrichedFlows = useMemo(() => enrichFlows(flows), [flows]);
 
-  // Abrir un flujo cuenta como atenderlo: reinicia su contador de inactividad
   const openFlow = (id) => {
     touchFlow(id);
     navigate(`/flujos/${id}`);
   };
 
-  // --- CAMBIO DE ESTADO (Activo <-> Completado) ---
-  // Se guarda localmente de inmediato; el backend se intenta actualizar,
-  // pero si falla ya NO se revierte el cambio.
   const handleToggleStatus = async (flow) => {
     const nuevoEstado = flow.estado === "Completado" ? "Activo" : "Completado";
 
@@ -103,9 +104,8 @@ export default function MisFlujos() {
     }
   };
 
-  // --- CONFIRMACIÓN Y BORRADO EN BASE DE DATOS (Cloud SQL / PostgreSQL) ---
   const confirmDelete = async () => {
-    if (!flowToDelete) return;
+    if (!flowToDelete || !isAdmin) return;
 
     setDeletingId(flowToDelete.id);
     setError("");
@@ -128,7 +128,6 @@ export default function MisFlujos() {
     }
   };
 
-  // Filtrado reactivo por nombre o estado (busca también por el estado efectivo)
   const filteredFlows = useMemo(() => {
     const q = searchTerm.toLowerCase();
     const matches = enrichedFlows.filter(
@@ -137,7 +136,6 @@ export default function MisFlujos() {
         f.estado?.toLowerCase().includes(q) ||
         f.estadoLabel?.toLowerCase().includes(q)
     );
-    // Activos primero, completados al final (se conserva el orden por fecha dentro de cada grupo)
     return [
       ...matches.filter((f) => f.estado !== "Completado"),
       ...matches.filter((f) => f.estado === "Completado"),
@@ -190,7 +188,6 @@ export default function MisFlujos() {
         </div>
 
         <Card className="overflow-hidden border border-slate-200 dark:border-slate-800/80 rounded-2xl shadow-sm dark:shadow-2xl bg-white dark:bg-[#111827]/90 backdrop-blur-xl">
-          {/* Header de Tabla */}
           <div className="grid grid-cols-[2fr_1fr_1fr_1.2fr_0.8fr] px-6 py-3.5 text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800/80 uppercase tracking-wider font-body">
             <span>Nombre</span>
             <span>Fecha de creación</span>
@@ -199,7 +196,6 @@ export default function MisFlujos() {
             <span></span>
           </div>
 
-          {/* Filas */}
           {loading ? (
             <div className="py-12 text-center text-xs text-slate-400">
               <Loader2 size={20} className="animate-spin mx-auto mb-2 text-blue" />
@@ -253,7 +249,6 @@ export default function MisFlujos() {
                     {f.pasos} {f.pasos === 1 ? "paso" : "pasos"}
                   </span>
 
-                  {/* Botón clicable de estado: alterna Activo <-> Completado */}
                   <div>
                     <button
                       type="button"
@@ -283,15 +278,18 @@ export default function MisFlujos() {
                   </div>
 
                   <div className="flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setFlowToDelete(f)}
-                      title="Eliminar flujo"
-                      aria-label={`Eliminar ${f.nombre}`}
-                      className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                    {/* Botón basurero: Exclusivo para el usuario Administrador */}
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => setFlowToDelete(f)}
+                        title="Eliminar flujo"
+                        aria-label={`Eliminar ${f.nombre}`}
+                        className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => openFlow(f.id)}
@@ -307,8 +305,8 @@ export default function MisFlujos() {
         </Card>
       </div>
 
-      {/* --- MODAL DE ELIMINACIÓN --- */}
-      {flowToDelete && (
+      {/* Modal de eliminación protegido por rol */}
+      {flowToDelete && isAdmin && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4"
           role="dialog"
