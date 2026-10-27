@@ -12,12 +12,10 @@ import {
   AlertTriangle,
   Clock,
   Sparkles,
-  CheckCircle2,
   CheckCheck,
   BellOff,
-  Workflow,
 } from "lucide-react";
-import { Avatar } from "./ui";
+import { Logo, Avatar } from "./ui";
 import { useAuth } from "../lib/AuthContext";
 import { enrichFlows, applyStatusOverrides, touchFlow } from "../lib/flowlogic";
 import { getCachedAvatar, syncAvatar } from "../lib/avatar";
@@ -37,26 +35,7 @@ function initialsFromName(name) {
 }
 
 // ---------------------------------------------------------------------
-// Marca estética sustituta del logo anterior (Isotipo + Tipografía)
-// ---------------------------------------------------------------------
-const BrandHeader = () => (
-  <div className="flex items-center gap-2.5 min-w-0 select-none">
-    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-500 flex items-center justify-center shadow-md shadow-blue-500/20 text-white shrink-0">
-      <Workflow size={18} strokeWidth={2.2} />
-    </div>
-    <div className="flex flex-col min-w-0 leading-none">
-      <span className="text-sm font-bold font-display tracking-tight text-slate-900 dark:text-white truncate">
-        Smart<span className="text-blue-600 dark:text-blue-400">Flow</span>
-      </span>
-      <span className="text-[9px] font-semibold font-mono text-slate-400 dark:text-slate-500 tracking-wider uppercase mt-0.5">
-        AI Suite
-      </span>
-    </div>
-  </div>
-);
-
-// ---------------------------------------------------------------------
-// Notificaciones Generadas
+// Notificaciones (se calculan con los flujos guardados en caché)
 // ---------------------------------------------------------------------
 const READ_KEY = "smartflow_notif_read";
 
@@ -76,55 +55,37 @@ const buildNotifications = () => {
     cached = [];
   }
 
-  const flows = enrichFlows(applyStatusOverrides(cached));
+  const flows = enrichFlows(applyStatusOverrides(cached)).filter((f) => f.estado === "Activo");
   const list = [];
 
   flows.forEach((f) => {
-    // 1. Flujo Completado
-    if (f.estado === "Completado" || f.status === "Completado") {
+    if (f.estadoLabel === "Inactivo") {
       list.push({
-        key: `completado-${f.id}`,
+        key: `inactivo-${f.id}`,
         flowId: f.id,
-        tipo: "completado",
-        titulo: "Flujo completado",
-        texto: `"${f.nombre}" ha completado todos sus pasos con éxito.`,
+        tipo: "inactivo",
+        titulo: "Flujo inactivo",
+        texto: `"${f.nombre}" lleva ${f.diasSinActividad} días sin actividad.`,
         orden: 0,
       });
-    }
-
-    // 2. Flujo Creado / Nuevo
-    if (f.diasSinActividad <= 1) {
+    } else if (f.estadoLabel === "Requiere atención") {
+      list.push({
+        key: `atencion-${f.id}`,
+        flowId: f.id,
+        tipo: "atencion",
+        titulo: "Requiere atención",
+        texto: `"${f.nombre}" lleva ${f.diasSinActividad} días sin movimiento.`,
+        orden: 1,
+      });
+    } else if (f.diasSinActividad <= 1) {
       list.push({
         key: `nuevo-${f.id}`,
         flowId: f.id,
         tipo: "nuevo",
-        titulo: "Nuevo flujo creado",
-        texto: `Se registró "${f.nombre}" (${f.pasos || 0} pasos).`,
-        orden: 1,
+        titulo: "Flujo nuevo",
+        texto: `"${f.nombre}" se creó recientemente (${f.pasos} pasos).`,
+        orden: 2,
       });
-    }
-
-    // 3. Flujo Activo que Requiere Atención o está Inactivo
-    if (f.estado === "Activo") {
-      if (f.estadoLabel === "Inactivo") {
-        list.push({
-          key: `inactivo-${f.id}`,
-          flowId: f.id,
-          tipo: "inactivo",
-          titulo: "Flujo inactivo",
-          texto: `"${f.nombre}" lleva ${f.diasSinActividad} días sin actividad.`,
-          orden: 2,
-        });
-      } else if (f.estadoLabel === "Requiere atención") {
-        list.push({
-          key: `atencion-${f.id}`,
-          flowId: f.id,
-          tipo: "atencion",
-          titulo: "Requiere atención",
-          texto: `"${f.nombre}" requiere revisión de tiempos.`,
-          orden: 3,
-        });
-      }
     }
   });
 
@@ -132,10 +93,9 @@ const buildNotifications = () => {
 };
 
 const NOTIF_STYLE = {
-  completado: { icon: CheckCircle2, box: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" },
-  nuevo: { icon: Sparkles, box: "bg-blueSoft dark:bg-blue/20 text-blue dark:text-blue-400" },
-  atencion: { icon: Clock, box: "bg-amberSoft dark:bg-amber/15 text-amber dark:text-amber-400" },
   inactivo: { icon: AlertTriangle, box: "bg-redSoft dark:bg-red/15 text-red" },
+  atencion: { icon: Clock, box: "bg-amberSoft dark:bg-amber/15 text-amber dark:text-amber-400" },
+  nuevo: { icon: Sparkles, box: "bg-blueSoft dark:bg-blue/20 text-blue dark:text-blue-400" },
 };
 
 const NotificationBell = () => {
@@ -147,6 +107,7 @@ const NotificationBell = () => {
 
   const refresh = () => setNotifs(buildNotifications());
 
+  // Refresca al montar, cada 30 s y cuando otra pestaña cambia los datos
   useEffect(() => {
     refresh();
     const t = setInterval(refresh, 30000);
@@ -160,6 +121,7 @@ const NotificationBell = () => {
     };
   }, []);
 
+  // Cierra con clic afuera o Esc
   useEffect(() => {
     if (!open) return undefined;
     const onClick = (e) => {
@@ -221,7 +183,7 @@ const NotificationBell = () => {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[340px] max-w-[90vw] z-50 rounded-2xl border border-border dark:border-navyCard bg-white dark:bg-navy shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute right-0 top-full mt-2 w-[340px] max-w-[90vw] z-50 rounded-2xl border border-border dark:border-navyCard bg-white dark:bg-navy shadow-2xl overflow-hidden">
           {/* Encabezado */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border dark:border-navyCard">
             <div className="flex items-center gap-2">
@@ -238,7 +200,7 @@ const NotificationBell = () => {
                 onClick={markAllRead}
                 className="flex items-center gap-1 text-[11px] font-semibold text-blue dark:text-blue-400 font-body hover:underline cursor-pointer"
               >
-                <CheckCheck size={13} /> Marcar todo leído
+                <CheckCheck size={13} /> Marcar todo como leído
               </button>
             )}
           </div>
@@ -251,11 +213,11 @@ const NotificationBell = () => {
                   <BellOff size={18} className="text-muted dark:text-faint" />
                 </div>
                 <p className="text-sm font-semibold text-ink dark:text-white font-body">Todo al día</p>
-                <p className="text-xs text-muted dark:text-faint font-body mt-0.5">No tienes notificaciones pendientes.</p>
+                <p className="text-xs text-muted dark:text-faint font-body mt-0.5">No tienes notificaciones.</p>
               </div>
             ) : (
               notifs.map((n) => {
-                const { icon: Icon, box } = NOTIF_STYLE[n.tipo] || NOTIF_STYLE.nuevo;
+                const { icon: Icon, box } = NOTIF_STYLE[n.tipo];
                 const isRead = readIds.includes(n.key);
                 return (
                   <button
@@ -296,6 +258,7 @@ export const TopBar = ({ title, subtitle, right }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // Foto de la cuenta actual: caché por usuario + sincronización con el servidor
   const [avatarUrl, setAvatarUrl] = useState(() => getCachedAvatar(user) || user?.avatarUrl || "");
 
   useEffect(() => {
@@ -317,6 +280,7 @@ export const TopBar = ({ title, subtitle, right }) => {
 
         <NotificationBell />
 
+        {/* Avatar: lleva a Configuración */}
         <button
           type="button"
           onClick={() => navigate("/configuracion")}
@@ -332,7 +296,7 @@ export const TopBar = ({ title, subtitle, right }) => {
 };
 
 // ---------------------------------------------------------------------
-// AppShell Principal
+// AppShell
 // ---------------------------------------------------------------------
 export default function AppShell({ children }) {
   const navigate = useNavigate();
@@ -377,17 +341,18 @@ export default function AppShell({ children }) {
         }`}
       >
         <div>
-          {/* Header de la Sidebar con nuevo Isotipo estético */}
+          {/* Abierto: botón de 3 líneas a la izquierda + logo completo
+              Colapsado: solo el botón de menú, sin logo */}
           {collapsed ? (
             <div className="flex justify-center mb-8 w-full">{menuButton}</div>
           ) : (
             <div className="flex items-center gap-2 mb-8 w-full px-1">
               {menuButton}
-              <BrandHeader />
+              <Logo size="md" />
             </div>
           )}
 
-          {/* Navegación Principal */}
+          {/* Menú de Opciones */}
           <nav className="flex flex-col gap-1">
             {visibleNav.map((item) => (
               <NavLink
