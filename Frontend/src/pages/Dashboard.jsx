@@ -61,6 +61,15 @@ export default function Dashboard() {
   // Flujos con estado efectivo (según días sin actividad)
   const enrichedFlows = useMemo(() => enrichFlows(flows), [flows]);
 
+  // Los 8 más recientes: activos primero, completados al final
+  const recientes = useMemo(() => {
+    const top = enrichedFlows.slice(0, 8);
+    return [
+      ...top.filter((f) => f.estado !== "Completado"),
+      ...top.filter((f) => f.estado === "Completado"),
+    ];
+  }, [enrichedFlows]);
+
   // --- ALGORITMO Y CÁLCULO DE KPIS ---
   const kpis = useMemo(() => {
     const totalFlujos = flows.length;
@@ -255,63 +264,72 @@ export default function Dashboard() {
             </div>
 
             <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-              {enrichedFlows.slice(0, 8).map((f) => (
-                <div
-                  key={f.id}
-                  className="flex items-center justify-between py-2.5 group hover:bg-slate-50/50 dark:hover:bg-slate-800/20 px-1 rounded-lg transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <button
-                      type="button"
-                      onClick={() => openFlow(f.id)}
-                      className="text-left font-body group-hover:text-blue transition-colors cursor-pointer truncate"
+              {recientes.map((f) => {
+                const completado = f.estado === "Completado";
+                return (
+                  <div
+                    key={f.id}
+                    className="flex items-center justify-between py-2.5 group hover:bg-slate-50/50 dark:hover:bg-slate-800/20 px-1 rounded-lg transition-colors"
+                  >
+                    <div
+                      className={`flex items-center gap-3 min-w-0 transition-opacity ${
+                        completado ? "opacity-60" : ""
+                      }`}
                     >
-                      <p className="text-xs font-semibold text-slate-900 dark:text-white font-body truncate">
-                        {f.nombre}
-                      </p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-body">
-                        {f.fecha} · {f.pasos || 0} pasos
-                      </p>
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => openFlow(f.id)}
+                        className="text-left font-body group-hover:text-blue transition-colors cursor-pointer truncate"
+                      >
+                        <p
+                          className={`text-xs font-semibold text-slate-900 dark:text-white font-body truncate ${
+                            completado ? "line-through decoration-slate-400" : ""
+                          }`}
+                        >
+                          {f.nombre}
+                        </p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-body">
+                          {f.fecha} · {f.pasos || 0} pasos
+                        </p>
+                      </button>
+                    </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    {/* Estado clicable: alterna Activo <-> Completado */}
-                    <button
-                      type="button"
-                      onClick={() => handleToggleStatus(f)}
-                      disabled={updatingStatusId === f.id}
-                      title={
-                        f.estado === "Completado" ? "Clic para reactivar el flujo" : "Clic para marcar como completado"
-                      }
-                      className="hover:scale-105 active:scale-95 transition-transform cursor-pointer inline-flex items-center whitespace-nowrap"
-                    >
-                      {updatingStatusId === f.id ? (
-                        <Loader2 size={13} className="animate-spin text-blue" />
-                      ) : (
-                        <Pill tone={f.estadoTone}>
-                          {f.estadoLabel === "Completado" && <CheckCircle2 size={10} className="inline mr-1" />}
-                          {f.estadoLabel === "Requiere atención" && (
-                            <AlertTriangle size={10} className="inline mr-1" />
-                          )}
-                          {f.estadoLabel || "Activo"}
-                        </Pill>
-                      )}
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {/* Estado clicable: alterna Activo <-> Completado */}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStatus(f)}
+                        disabled={updatingStatusId === f.id}
+                        title={completado ? "Clic para reactivar el flujo" : "Clic para marcar como completado"}
+                        className="hover:scale-105 active:scale-95 transition-transform cursor-pointer inline-flex items-center whitespace-nowrap"
+                      >
+                        {updatingStatusId === f.id ? (
+                          <Loader2 size={13} className="animate-spin text-blue" />
+                        ) : (
+                          <Pill tone={f.estadoTone}>
+                            {f.estadoLabel === "Completado" && <CheckCircle2 size={10} className="inline mr-1" />}
+                            {f.estadoLabel === "Requiere atención" && (
+                              <AlertTriangle size={10} className="inline mr-1" />
+                            )}
+                            {f.estadoLabel || "Activo"}
+                          </Pill>
+                        )}
+                      </button>
 
-                    {/* Botón basurero abre el modal */}
-                    <button
-                      type="button"
-                      onClick={() => setFlowToDelete(f)}
-                      title="Eliminar flujo"
-                      aria-label={`Eliminar ${f.nombre}`}
-                      className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                      {/* Botón basurero abre el modal */}
+                      <button
+                        type="button"
+                        onClick={() => setFlowToDelete(f)}
+                        title="Eliminar flujo"
+                        aria-label={`Eliminar ${f.nombre}`}
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {!loading && flows.length === 0 && (
                 <p className="text-xs text-slate-400 font-body py-8 text-center">
