@@ -42,37 +42,6 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
   return data;
 }
 
-// Igual que request(), pero para subir archivos (multipart/form-data).
-// No se manda "Content-Type" a mano: el navegador arma el boundary solo
-// cuando el body es un FormData.
-async function requestForm(path, formData, { method = "POST", auth = true } = {}) {
-  const headers = {};
-
-  if (auth) {
-    const token = getToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
-  }
-
-  const res = await fetch(`${API_URL}${path}`, {
-    method,
-    headers,
-    body: formData,
-  });
-
-  if (res.status === 204) return null;
-
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    const message = data?.error?.message || `Error ${res.status}`;
-    const err = new Error(message);
-    err.status = res.status;
-    throw err;
-  }
-
-  return data;
-}
-
 export const api = {
   // Auth
   login: (email, password) => request("/auth/login", { method: "POST", body: { email, password }, auth: false }),
@@ -80,6 +49,10 @@ export const api = {
   me: () => request("/auth/me"),
   requestPasswordReset: (email) => request("/auth/forgot-password", { method: "POST", body: { email }, auth: false }),
   resetPassword: (token, password) => request("/auth/reset-password", { method: "POST", body: { token, password }, auth: false }),
+
+  // Perfil: foto del usuario (se guarda en la base de datos, por cuenta)
+  getMyProfile: () => request("/auth/me"),
+  updateMyAvatar: (avatar) => request("/auth/me/avatar", { method: "PUT", body: { avatar } }),
 
   // Flujos
   getFlows: () => request("/flows"),
@@ -91,16 +64,6 @@ export const api = {
   // IA
   generateFlow: (descripcion, general = false) => request("/ai/generate-flow", { method: "POST", body: { descripcion, general } }),
   generateReport: (flowData) => request("/ai/generate-report", { method: "POST", body: flowData }),
-  // Sube un PDF de protocolo/procedimiento y la IA extrae una descripción en
-  // lenguaje natural para precargar el textarea de "Generar con IA".
-  // NOTA: requiere una ruta en el backend (Node/Express) que reciba
-  // multipart/form-data con el campo "pdf" y devuelva { descripcion }.
-  // Si tu backend usa otro path o otro nombre de campo, ajústalo aquí.
-  extractPdfFlow: (file) => {
-    const formData = new FormData();
-    formData.append("pdf", file);
-    return requestForm("/ai/extract-pdf", formData);
-  },
 
   // Dashboard
   getKpis: () => request("/dashboard/kpis"),
@@ -121,7 +84,6 @@ export const api = {
   updateMyHierarchy: (jerarquia) => request("/organizations/me/jerarquia", { method: "PUT", body: { jerarquia } }),
   // payload: { nombre?, tipo_industria?, jerarquia? } — actualización parcial,
   // usado desde Configuración para que la IA genere flujos acordes al tipo
-  // de empresa y a la jerarquía real (sin asumir gerentes/juntas directivas
-  // que esa empresa no tenga).
+  // de empresa y a la jerarquía real.
   updateMyOrganization: (payload) => request("/organizations/me", { method: "PUT", body: payload }),
 };

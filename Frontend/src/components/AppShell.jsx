@@ -18,6 +18,7 @@ import {
 import { Logo, Avatar } from "./ui";
 import { useAuth } from "../lib/AuthContext";
 import { enrichFlows, applyStatusOverrides, touchFlow } from "../lib/flowlogic";
+import { getCachedAvatar, syncAvatar } from "../lib/avatar";
 
 const NAV = [
   { to: "/dashboard", icon: LayoutGrid, label: "Dashboard" },
@@ -256,7 +257,17 @@ const NotificationBell = () => {
 export const TopBar = ({ title, subtitle, right }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const avatarUrl = user?.avatarUrl || localStorage.getItem("user_avatar");
+
+  // Foto de la cuenta actual: caché por usuario + sincronización con el servidor
+  const [avatarUrl, setAvatarUrl] = useState(() => getCachedAvatar(user) || user?.avatarUrl || "");
+
+  useEffect(() => {
+    const refresh = () => setAvatarUrl(getCachedAvatar(user) || user?.avatarUrl || "");
+    refresh();
+    syncAvatar(user);
+    window.addEventListener("smartflow-avatar", refresh);
+    return () => window.removeEventListener("smartflow-avatar", refresh);
+  }, [user]);
 
   return (
     <div className="relative z-30 flex items-center justify-between px-8 py-5 border-b border-border dark:border-navyCard bg-white dark:bg-navy transition-colors">

@@ -23,7 +23,8 @@ export const login = asyncHandler(async (req, res) => {
   }
 
   const result = await pool.query(
-    `SELECT id, nombre, email, password_hash, rol, organizacion_id AS "organizationId"
+    `SELECT id, nombre, email, password_hash, rol,
+            organizacion_id AS "organizationId", avatar_url AS "avatarUrl"
      FROM usuarios WHERE email = $1`,
     [email]
   );
@@ -49,6 +50,7 @@ export const login = asyncHandler(async (req, res) => {
       email: user.email,
       role: user.rol,
       organizationId: user.organizationId,
+      avatarUrl: user.avatarUrl || null,
     },
   });
 });
@@ -98,13 +100,57 @@ export const register = asyncHandler(async (req, res) => {
       email: user.email,
       role: user.rol,
       organizationId: user.organizationId,
+      avatarUrl: null,
     },
   });
 });
 
 // GET /api/auth/me
 export const me = asyncHandler(async (req, res) => {
-  res.json({ user: req.user });
+  const result = await pool.query(
+    `SELECT id, nombre, email, rol,
+            organizacion_id AS "organizationId", avatar_url AS "avatarUrl"
+     FROM usuarios WHERE id = $1`,
+    [req.user.id]
+  );
+
+  if (result.rows.length === 0) {
+    throw new ApiError(404, "Usuario no encontrado.");
+  }
+
+  const u = result.rows[0];
+  res.json({
+    user: {
+      id: u.id,
+      nombre: u.nombre,
+      email: u.email,
+      role: u.rol,
+      organizationId: u.organizationId,
+      avatarUrl: u.avatarUrl || null,
+    },
+  });
+});
+
+// PUT /api/auth/me/avatar
+// Recibe { avatar: "data:image/jpeg;base64,..." } (o null para quitar la foto)
+export const updateAvatar = asyncHandler(async (req, res) => {
+  const { avatar } = req.body || {};
+
+  if (avatar === null || avatar === "") {
+    await pool.query(`UPDATE usuarios SET avatar_url = NULL WHERE id = $1`, [req.user.id]);
+    return res.json({ avatarUrl: null });
+  }
+
+  const esImagen = typeof avatar === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(avatar);
+  if (!esImagen) {
+    throw new ApiError(400, "La foto debe ser una imagen JPG, PNG o WebP.");
+  }
+  if (avatar.length > 300000) {
+    throw new ApiError(413, "La foto es demasiado grande.");
+  }
+
+  await pool.query(`UPDATE usuarios SET avatar_url = $1 WHERE id = $2`, [avatar, req.user.id]);
+  res.json({ avatarUrl: avatar });
 });
 
 // POST /api/auth/forgot-password
@@ -115,12 +161,12 @@ export const forgotPassword = asyncHandler(async (req, res) => {
     throw new ApiError(400, "El correo electrónico es requerido.");
   }
 
-  const userResult = await pool.query('SELECT id, nombre, email FROM usuarios WHERE email = \$1', [email]);
-  
+  const userResult = await pool.query('SELECT id, nombre, email FROM usuarios WHERE email = $1', [email]);
+
   // Por seguridad, devolvemos respuesta exitosa aunque el correo no exista en la BD
   if (userResult.rows.length === 0) {
-    return res.json({ 
-      message: "Se ha enviado un correo con las instrucciones si la cuenta existe." 
+    return res.json({
+      message: "Se ha enviado un correo con las instrucciones si la cuenta existe."
     });
   }
 
@@ -132,9 +178,9 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // Expira en 30 minutos
 
   // Limpiar tokens anteriores e insertar el nuevo token
-  await pool.query('DELETE FROM password_reset_tokens WHERE user_id = \$1', [user.id]);
+  await pool.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user.id]);
   await pool.query(
-    'INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (\$1, \$2, \$3)',
+    'INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
     [user.id, tokenHash, expiresAt]
   );
 
@@ -168,8 +214,8 @@ export const forgotPassword = asyncHandler(async (req, res) => {
 
   await transporter.sendMail(mailOptions);
 
-  res.json({ 
-    message: "Se ha enviado un correo con las instrucciones si la cuenta existe." 
+  res.json({
+    message: "Se ha enviado un correo con las instrucciones si la cuenta existe."
   });
 });
 
@@ -186,7 +232,7 @@ export const resetPassword = asyncHandler(async (req, res) => {
 
   // Buscar token válido que no haya expirado
   const tokenResult = await pool.query(
-    'SELECT * FROM password_reset_tokens WHERE token_hash = \$1 AND expires_at > NOW()',
+    'SELECT * FROM password_reset_tokens WHERE token_hash = $1 AND expires_at > NOW()',
     [tokenHash]
   );
 
@@ -198,10 +244,10 @@ export const resetPassword = asyncHandler(async (req, res) => {
   const newPasswordHash = await bcrypt.hash(finalPassword, 10);
 
   // Actualizar contraseña en la columna 'password_hash' y eliminar el token
-  await pool.query('UPDATE usuarios SET password_hash = \$1 WHERE id = \$2', [newPasswordHash, resetRecord.user_id]);
-  await pool.query('DELETE FROM password_reset_tokens WHERE id = \$1', [resetRecord.id]);
+  await pool.query('UPDATE usuarios SET password_hash = $1 WHERE id = $2', [newPasswordHash, resetRecord.user_id]);
+  await pool.query('DELETE FROM password_reset_tokens WHERE id = $1', [resetRecord.id]);
 
-  res.json({ 
-    message: "Contraseña actualizada correctamente. Ya puedes iniciar sesión." 
+  res.json({
+    message: "Contraseña actualizada correctamente. Ya puedes iniciar sesión."
   });
 });

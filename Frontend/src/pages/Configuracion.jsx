@@ -21,6 +21,7 @@ import AppShell, { TopBar } from "../components/AppShell";
 import { Card, Avatar, Pill } from "../components/ui";
 import { useAuth } from "../lib/AuthContext";
 import { api } from "../lib/api";
+import { compressImage, getCachedAvatar, setCachedAvatar, syncAvatar } from "../lib/avatar";
 
 function initialsFromName(name) {
   if (!name) return "US";
@@ -71,9 +72,17 @@ export default function Configuracion() {
   const fullName = user?.nombre_completo || user?.name || "Usuario";
   const username = user?.username || "usuario";
 
-  const [avatarUrl, setAvatarUrl] = useState(() => {
-    return localStorage.getItem("user_avatar") || user?.avatarUrl || "";
-  });
+  // Foto de perfil: se guarda por usuario y se sincroniza con el servidor
+  const [avatarUrl, setAvatarUrl] = useState(() => getCachedAvatar(user) || user?.avatarUrl || "");
+  const [avatarError, setAvatarError] = useState("");
+
+  useEffect(() => {
+    const refresh = () => setAvatarUrl(getCachedAvatar(user) || user?.avatarUrl || "");
+    refresh();
+    syncAvatar(user);
+    window.addEventListener("smartflow-avatar", refresh);
+    return () => window.removeEventListener("smartflow-avatar", refresh);
+  }, [user]);
 
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem("theme") || "system";
@@ -162,17 +171,18 @@ export default function Configuracion() {
     }
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64Image = reader.result;
-      setAvatarUrl(base64Image);
-      localStorage.setItem("user_avatar", base64Image);
-    };
-    reader.readAsDataURL(file);
+    setAvatarError("");
+    try {
+      const dataUrl = await compressImage(file);
+      setCachedAvatar(user, dataUrl); // se ve al instante en toda la app
+      await api.updateMyAvatar(dataUrl); // se guarda en el servidor
+    } catch (err) {
+      setAvatarError(err.message || "No se pudo guardar la foto en el servidor.");
+    }
   };
 
   // Miniaturas de vista previa de cada tema
@@ -225,7 +235,7 @@ export default function Configuracion() {
       <TopBar title="Configuración" subtitle="Cuenta, equipo e integraciones." />
 
       <div className="flex-1 overflow-auto p-6 md:p-8 w-full max-w-6xl mx-auto font-body">
-                {/* ===================== HERO DE PERFIL ===================== */}
+        {/* ===================== HERO DE PERFIL ===================== */}
         <Card className="p-6 mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             {/* Avatar con zoom */}
@@ -287,6 +297,9 @@ export default function Configuracion() {
             ))}
           </div>
         </Card>
+
+        {avatarError && <p className="text-xs text-red font-body mb-4">{avatarError}</p>}
+
         {/* ===================== GRID PRINCIPAL ===================== */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* -------- Columna izquierda: Organización -------- */}
