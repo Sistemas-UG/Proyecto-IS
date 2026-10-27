@@ -338,16 +338,12 @@ export default function Reportes() {
                   className="rounded-2xl border border-border dark:border-navyCard bg-white dark:bg-navy overflow-hidden transition-colors"
                 >
                   <div className="flex items-center justify-between gap-3 px-5 py-4">
-                    <button
+                                        <button
                       onClick={() =>
                         setExpandedId(isOpen ? null : insight.id)
                       }
                       className="flex-1 flex items-center gap-3 text-left cursor-pointer min-w-0"
                     >
-                      <div className="w-9 h-9 shrink-0 rounded-xl bg-blueSoft dark:bg-blue/15 border border-blue/20 dark:border-blue/30 flex items-center justify-center text-blue">
-                        <Sparkles size={16} />
-                      </div>
-
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-ink dark:text-white truncate">
                           {insight.titulo || "Flujo sin nombre"}
