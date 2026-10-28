@@ -29,3 +29,13 @@ export async function extractPdfText(file) {
     .trim()
     .slice(0, MAX_CHARS);
 }
+
+
+/** Devuelve { blob, filename } listo para vista previa (iframe) o descarga. */
+export function crearReportePDF(opts) {
+  const doc = buildReportDoc(opts);
+  return {
+    blob: doc.output("blob"),
+    filename: `reporte-eficiencia-${nombreSeguro(opts.titulo) || "flujo"}.pdf`,
+  };
+}
