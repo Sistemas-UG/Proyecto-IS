@@ -8,11 +8,13 @@ export const RANK_SEP = 140;
 // Separación horizontal para ramas paralelas (evita que las decisiones se peguen)
 export const NODE_SEP = 120;
 
-// Clases de estilo por tipo de nodo
+// Clases de estilo por tipo de nodo.
+// IMPORTANTE: w-[220px] y h-[86px] van escritas completas (Tailwind no genera
+// clases armadas con variables). Deben coincidir con NODE_WIDTH y NODE_HEIGHT.
 export function styleForTipo(tipo) {
   const base =
-    `rounded-xl border p-2.5 text-xs font-semibold font-body text-center w-[${NODE_WIDTH}px] h-[${NODE_HEIGHT}px] ` +
-    "flex items-center justify-center leading-snug line-clamp-3 overflow-hidden transition-colors shadow-xs ";
+    "rounded-xl border p-2.5 text-xs font-semibold font-body text-center w-[220px] h-[86px] " +
+    "flex items-center justify-center leading-snug overflow-hidden transition-colors shadow-xs ";
   if (tipo === "inicio") return base + "bg-navyDeep dark:bg-blue text-white border-transparent";
   if (tipo === "fin") return base + "bg-greenSoft dark:bg-green/20 text-green dark:text-emerald-400 border-green/30 dark:border-green/40";
   if (tipo === "decision") return base + "bg-white dark:bg-navy text-ink dark:text-white border-blue dark:border-blue";
@@ -36,8 +38,7 @@ export function edgeStyleForLabel(label) {
 export function layoutNodes(rawNodes, rawEdges) {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  
-  // Configuración para evitar cruce y amontonamiento en grafos complejos
+
   g.setGraph({
     rankdir: "TB",
     nodesep: NODE_SEP,
@@ -72,7 +73,7 @@ export function layoutEdges(rawEdges) {
     id: e.id,
     source: String(e.source),
     target: String(e.target),
-    type: "smoothstep", // Evita que las líneas atraviesen los nodos en diagonal
+    type: "smoothstep",
     label: e.label || undefined,
     ...edgeStyleForLabel(e.label),
     markerEnd: { type: MarkerType.ArrowClosed },
@@ -84,7 +85,7 @@ export function layoutFlowGeometry(rawNodes = [], rawEdges = []) {
   const ids = new Set(rawNodes.map((n) => String(n.id)));
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  
+
   g.setGraph({
     rankdir: "TB",
     nodesep: NODE_SEP,
