@@ -1,9 +1,10 @@
 import * as pdfjsLib from "pdfjs-dist";
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+// Cargar el worker directamente desde CDN usando la versión exacta instalada.
+// Esto elimina de raíz el error de "Failed to fetch dynamically imported module" en Cloud Run.
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
-const MAX_CHARS = 15000; // límite para no saturar a la IA
+const MAX_CHARS = 15000; // Límite para no saturar a la IA
 
 // Lee un PDF en el navegador y devuelve todo su texto
 export async function extractPdfText(file) {
@@ -29,7 +30,6 @@ export async function extractPdfText(file) {
     .trim()
     .slice(0, MAX_CHARS);
 }
-
 
 /** Devuelve { blob, filename } listo para vista previa (iframe) o descarga. */
 export function crearReportePDF(opts) {
