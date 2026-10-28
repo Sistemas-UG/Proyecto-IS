@@ -1,61 +1,281 @@
-import * as pdfjsLib from "pdfjs-dist";
 import { jsPDF } from "jspdf";
+import { layoutFlowGeometry } from "./flowLayout";
 
-// Cargar el worker directamente desde CDN usando la versión exacta instalada.
-// Esto elimina de raíz el error de "Failed to fetch dynamically imported module" en Cloud Run.
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+const PAGE_W = 210;
+const PAGE_H = 297;
+const MARGIN = 18;
+const CONTENT_W = PAGE_W - MARGIN * 2;
+const HEADER_H = 22;
+const FOOTER_SAFE = 20;
 
-const MAX_CHARS = 15000; // Límite para no saturar a la IA
+const COLOR_PRIMARY = [15, 27, 51];
+const COLOR_ACCENT = [59, 130, 246];
+const COLOR_MUTED = [100, 116, 139];
+const COLOR_TEXT = [30, 41, 59];
 
-// Lee un PDF en el navegador y devuelve todo su texto
-export async function extractPdfText(file) {
-  const data = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data }).promise;
+const NODE_COLORS = {
+  inicio: { fill: [15, 27, 51], text: [255, 255, 255], border: [15, 27, 51] },
+  fin: { fill: [220, 252, 231], text: [6, 95, 70], border: [16, 185, 129] },
+  decision: { fill: [255, 255, 255], text: [30, 41, 59], border: [59, 130, 246] },
+  paso: { fill: [255, 255, 255], text: [30, 41, 59], border: [203, 213, 225] },
+};
 
-  let texto = "";
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    let pageText = "";
-    for (const item of content.items) {
-      pageText += item.str;
-      pageText += item.hasEOL ? "\n" : " ";
-    }
-    texto += pageText + "\n\n";
-    if (texto.length >= MAX_CHARS) break;
-  }
-
-  return texto
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim()
-    .slice(0, MAX_CHARS);
-}
-
-// Genera nombres de archivo limpios y sin caracteres especiales
-export function nombreSeguro(str) {
-  return (str || "")
+function nombreSeguro(str = "") {
+  return String(str)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 60);
 }
 
-// Construye la estructura básica del documento PDF
-export function buildReportDoc(opts = {}) {
-  const doc = new jsPDF();
-  const titulo = opts.titulo || "Reporte de Eficiencia de Flujo";
+function formatFechaLarga(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  const base = isNaN(d.getTime()) ? new Date() : d;
+  return base.toLocaleDateString("es-GT", { day: "numeric", month: "long", year: "numeric" });
+}
 
-  doc.setFontSize(16);
-  doc.text(titulo, 14, 20);
+function dibujarEncabezado(doc, titulo) {
+  doc.setFillColor(...COLOR_PRIMARY);
+  doc.rect(0, 0, PAGE_W, HEADER_H, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(255, 255, 255);
+  doc.text("SmartFlow AI", MARGIN, 14);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(200, 210, 230);
+  const sub = doc.splitTextToSize(titulo || "Informe de eficiencia", CONTENT_W - 50);
+  doc.text(sub[0] || "Informe de eficiencia", PAGE_W - MARGIN, 14, { align: "right" });
+}
 
-  if (opts.subtitulo) {
-    doc.setFontSize(11);
-    doc.text(opts.subtitulo, 14, 28);
+function dibujarPie(doc, pageNum, totalPages) {
+  doc.setFontSize(8);
+  doc.setTextColor(...COLOR_MUTED);
+  doc.text(`Página ${pageNum} de ${totalPages}`, PAGE_W - MARGIN, PAGE_H - 10, { align: "right" });
+  doc.text("Generado automáticamente por SmartFlow AI", MARGIN, PAGE_H - 10);
+}
+
+function nuevaPagina(doc, titulo) {
+  doc.addPage();
+  dibujarEncabezado(doc, titulo);
+  return 32;
+}
+
+function checkPageBreak(doc, y, needed, titulo) {
+  if (y + needed > PAGE_H - FOOTER_SAFE) {
+    return nuevaPagina(doc, titulo);
+  }
+  return y;
+}
+
+// Interpreta el texto del reporte (Markdown ligero: "## Título", "- viñeta",
+// "**Clave:** valor", párrafos normales) y lo dibuja en el PDF.
+function escribirContenido(doc, texto, yInicial, titulo) {
+  let y = yInicial;
+  const lines = String(texto || "").split("\n");
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+
+    if (!line.trim()) {
+      y += 3;
+      continue;
+    }
+
+    if (/^##\s+/.test(line)) {
+      y = checkPageBreak(doc, y, 16, titulo);
+      y += 3;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.setTextColor(...COLOR_PRIMARY);
+      doc.text(line.replace(/^##\s+/, ""), MARGIN, y);
+      y += 2;
+      doc.setDrawColor(...COLOR_ACCENT);
+      doc.setLineWidth(0.6);
+      doc.line(MARGIN, y, MARGIN + 30, y);
+      y += 7;
+      continue;
+    }
+
+    if (/^-\s+/.test(line)) {
+      const contenido = line.replace(/^-\s+/, "").replace(/\*\*(.+?)\*\*/g, "$1");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10.5);
+      const wrapped = doc.splitTextToSize(contenido, CONTENT_W - 8);
+      y = checkPageBreak(doc, y, wrapped.length * 5 + 2, titulo);
+      doc.setFillColor(...COLOR_ACCENT);
+      doc.circle(MARGIN + 1.3, y - 1.3, 0.8, "F");
+      doc.setTextColor(...COLOR_TEXT);
+      doc.text(wrapped, MARGIN + 6, y);
+      y += wrapped.length * 5 + 2;
+      continue;
+    }
+
+    const kv = line.match(/^\*\*(.+?):\*\*\s*(.*)$/);
+    if (kv) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10.5);
+      const labelW = doc.getTextWidth(`${kv[1]}: `);
+      const wrapped = doc.splitTextToSize(kv[2], CONTENT_W - labelW);
+      y = checkPageBreak(doc, y, wrapped.length * 5 + 2, titulo);
+      doc.setTextColor(...COLOR_PRIMARY);
+      doc.text(`${kv[1]}:`, MARGIN, y);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(...COLOR_TEXT);
+      doc.text(wrapped, MARGIN + labelW, y);
+      y += wrapped.length * 5 + 2;
+      continue;
+    }
+
+    const plano = line.replace(/\*\*(.+?)\*\*/g, "$1");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10.5);
+    const wrapped = doc.splitTextToSize(plano, CONTENT_W);
+    y = checkPageBreak(doc, y, wrapped.length * 5 + 2, titulo);
+    doc.setTextColor(...COLOR_TEXT);
+    doc.text(wrapped, MARGIN, y);
+    y += wrapped.length * 5 + 2;
   }
 
-  if (opts.resumen) {
+  return y;
+}
+
+// Dibuja el diagrama del flujo (nodos + conexiones) usando el mismo layout
+// de dagre que el lienzo (flowLayout.js), partido en tantas páginas como
+// haga falta para que ningún nodo quede cortado.
+function dibujarFlujo(doc, flow, titulo) {
+  if (!flow?.nodes?.length) return;
+
+  const geometry = layoutFlowGeometry(flow.nodes, flow.edges || []);
+  if (!geometry.nodes.length) return;
+
+  let y = nuevaPagina(doc, titulo);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(...COLOR_PRIMARY);
+  doc.text("Diagrama del flujo", MARGIN, y);
+  y += 8;
+
+  const scale = Math.min(CONTENT_W / Math.max(geometry.width, 1), 1);
+  const pxToMm = (px) => px * scale;
+  const pageUsableH = PAGE_H - FOOTER_SAFE - y;
+  const stripHeightPx = pageUsableH / scale;
+
+  let offsetY = 0;
+  let pageIndex = 0;
+  const originX = MARGIN;
+
+  while (offsetY < geometry.height && pageIndex < 10) {
+    let originY = y;
+    if (pageIndex > 0) {
+      originY = nuevaPagina(doc, titulo);
+    }
+
+    geometry.edges.forEach((e) => {
+      const pts = e.points || [];
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        if (p1.y - offsetY < -40 && p2.y - offsetY < -40) continue;
+        if (p1.y - offsetY > stripHeightPx + 40 && p2.y - offsetY > stripHeightPx + 40) continue;
+        doc.setDrawColor(148, 163, 184);
+        doc.setLineWidth(0.35);
+        doc.line(
+          originX + pxToMm(p1.x),
+          originY + pxToMm(p1.y - offsetY),
+          originX + pxToMm(p2.x),
+          originY + pxToMm(p2.y - offsetY)
+        );
+      }
+      if (e.label && pts.length) {
+        const mid = pts[Math.floor(pts.length / 2)];
+        if (mid && mid.y - offsetY >= -20 && mid.y - offsetY <= stripHeightPx + 20) {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(7.5);
+          doc.setTextColor(100, 116, 139);
+          doc.text(e.label, originX + pxToMm(mid.x) + 2, originY + pxToMm(mid.y - offsetY));
+        }
+      }
+    });
+
+    geometry.nodes.forEach((n) => {
+      if (n.y + n.height < offsetY - 5 || n.y > offsetY + stripHeightPx + 5) return;
+      const colors = NODE_COLORS[n.type] || NODE_COLORS.paso;
+      const x = originX + pxToMm(n.x);
+      const yN = originY + pxToMm(n.y - offsetY);
+      const w = pxToMm(n.width);
+      const h = pxToMm(n.height);
+
+      doc.setFillColor(...colors.fill);
+      doc.setDrawColor(...colors.border);
+      doc.setLineWidth(0.4);
+      doc.roundedRect(x, yN, w, h, 1.5, 1.5, "FD");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(...colors.text);
+      const wrapped = doc.splitTextToSize(n.label || "", Math.max(w - 4, 10));
+      const maxLines = Math.max(1, Math.floor((h - 2) / 3.2));
+      const shown = wrapped.slice(0, maxLines);
+      const startTy = yN + h / 2 - ((shown.length - 1) * 1.6);
+      shown.forEach((ln, i) => {
+        doc.text(ln, x + w / 2, startTy + i * 3.2, { align: "center" });
+      });
+    });
+
+    offsetY += stripHeightPx;
+    pageIndex += 1;
+  }
+}
+
+export function buildReportDoc({ titulo, texto, generatedEn, ahorroHoras, flow }) {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const tituloFinal = titulo || "Reporte de eficiencia";
+
+  dibujarEncabezado(doc, tituloFinal);
+  let y = 34;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(19);
+  doc.setTextColor(...COLOR_PRIMARY);
+  const tituloWrapped = doc.splitTextToSize(tituloFinal, CONTENT_W);
+  doc.text(tituloWrapped, MARGIN, y);
+  y += tituloWrapped.length * 7 + 2;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(...COLOR_MUTED);
+  doc.text(`Generado el ${formatFechaLarga(generatedEn)}`, MARGIN, y);
+  y += 8;
+
+  if (ahorroHoras !== undefined && ahorroHoras !== null && ahorroHoras !== "") {
+    doc.setFillColor(236, 253, 245);
+    doc.setDrawColor(16, 185, 129);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(MARGIN, y, 64, 12, 2, 2, "FD");
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.text(opts.resumen, 14, 38);
+    doc.setTextColor(6, 95, 70);
+    doc.text(`Ahorro estimado: ${ahorroHoras} hrs`, MARGIN + 32, y + 7.5, { align: "center" });
+    y += 20;
+  } else {
+    y += 2;
+  }
+
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
+  doc.line(MARGIN, y, PAGE_W - MARGIN, y);
+  y += 8;
+
+  escribirContenido(doc, texto, y, tituloFinal);
+  dibujarFlujo(doc, flow, tituloFinal);
+
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    dibujarPie(doc, p, totalPages);
   }
 
   return doc;
