@@ -1,4 +1,5 @@
 import * as pdfjsLib from "pdfjs-dist";
+import { jsPDF } from "jspdf";
 
 // Cargar el worker directamente desde CDN usando la versión exacta instalada.
 // Esto elimina de raíz el error de "Failed to fetch dynamically imported module" en Cloud Run.
@@ -29,6 +30,35 @@ export async function extractPdfText(file) {
     .replace(/\n{3,}/g, "\n\n")
     .trim()
     .slice(0, MAX_CHARS);
+}
+
+// Genera nombres de archivo limpios y sin caracteres especiales
+export function nombreSeguro(str) {
+  return (str || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+// Construye la estructura básica del documento PDF
+export function buildReportDoc(opts = {}) {
+  const doc = new jsPDF();
+  const titulo = opts.titulo || "Reporte de Eficiencia de Flujo";
+
+  doc.setFontSize(16);
+  doc.text(titulo, 14, 20);
+
+  if (opts.subtitulo) {
+    doc.setFontSize(11);
+    doc.text(opts.subtitulo, 14, 28);
+  }
+
+  if (opts.resumen) {
+    doc.setFontSize(10);
+    doc.text(opts.resumen, 14, 38);
+  }
+
+  return doc;
 }
 
 /** Devuelve { blob, filename } listo para vista previa (iframe) o descarga. */
