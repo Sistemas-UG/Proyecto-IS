@@ -68,4 +68,4 @@ export function crearReportePDF(opts) {
     blob: doc.output("blob"),
     filename: `reporte-eficiencia-${nombreSeguro(opts.titulo) || "flujo"}.pdf`,
   };
-}
+}c
