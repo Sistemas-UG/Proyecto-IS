@@ -380,12 +380,12 @@ export default function CrearFlujo() {
                 Describe tu flujo en lenguaje natural (Español)
               </label>
               
-              {/* Textarea sin barra de scroll visible */}
+              {/* Recuadro completo sin scrollbar e impreso con min-h amplio */}
               <textarea
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
-                rows={4}
-                className="w-full text-sm rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-2.5 text-ink dark:text-white font-body outline-none focus:border-blue resize-none mb-2 transition-colors placeholder:text-muted/60 dark:placeholder:text-faint/50 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                rows={6}
+                className="w-full min-h-[145px] text-xs leading-relaxed rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-3 text-ink dark:text-white font-body outline-none focus:border-blue resize-none mb-2 transition-colors placeholder:text-muted/60 dark:placeholder:text-faint/50 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
                 placeholder='Ej: "Crear un flujo para solicitudes de vacaciones: el empleado envía la solicitud, el gerente la revisa, si la aprueba, RRHH verifica días restantes y da el visto bueno final. Si se rechaza en algún paso, notificar al empleado."'
               />
 
