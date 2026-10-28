@@ -44,7 +44,6 @@ export default function CrearFlujo() {
 
   const [mode, setMode] = useState("ia");
 
-  // --- Modo IA ---
   const [descripcion, setDescripcion] = useState("");
   const [flujoGeneral, setFlujoGeneral] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -52,14 +51,12 @@ export default function CrearFlujo() {
   const [aiResult, setAiResult] = useState(null);
   const [myOrg, setMyOrg] = useState(null);
 
-  // --- Carga de Protocolo PDF ---
   const pdfInputRef = useRef(null);
   const [extractingPdf, setExtractingPdf] = useState(false);
 
-  // --- Estado para Modal de Edición ---
   const [editModal, setEditModal] = useState({
     isOpen: false,
-    type: null, // 'node' | 'edge'
+    type: null,
     id: null,
     label: "",
   });
@@ -75,7 +72,6 @@ export default function CrearFlujo() {
     };
   }, []);
 
-  // --- Nombre + guardado ---
   const [flowName, setFlowName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -87,7 +83,6 @@ export default function CrearFlujo() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [insightOpen, setInsightOpen] = useState(false);
 
-  // --- Lienzo compartido ---
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selection, setSelection] = useState({ nodes: [], edges: [] });
@@ -95,7 +90,6 @@ export default function CrearFlujo() {
 
   const markDirty = () => setSaved(false);
 
-  // Conexión limpia con curvas 'smoothstep' y flecha azul
   const onConnect = useCallback(
     (c) => {
       markDirty();
@@ -132,7 +126,6 @@ export default function CrearFlujo() {
     setNodes((nds) => nds.concat(newNode));
   };
 
-  // Doble clic en un nodo -> abre modal
   const onNodeDoubleClick = useCallback((_evt, node) => {
     setEditModal({
       isOpen: true,
@@ -142,7 +135,6 @@ export default function CrearFlujo() {
     });
   }, []);
 
-  // Doble clic en una conexión -> abre modal
   const onEdgeDoubleClick = useCallback((_evt, edge) => {
     setEditModal({
       isOpen: true,
@@ -152,7 +144,6 @@ export default function CrearFlujo() {
     });
   }, []);
 
-  // Guardar cambios desde el modal
   const handleSaveModal = (e) => {
     e.preventDefault();
     if (!editModal.id) return;
@@ -188,7 +179,6 @@ export default function CrearFlujo() {
     setSelection({ nodes: [], edges: [] });
   };
 
-  // --- Genera el flujo con IA. Si viene texto del PDF lo usa; si no, la descripción escrita ---
   const handleGenerar = async (textoOverride) => {
     const texto = typeof textoOverride === "string" ? textoOverride : descripcion;
     if (!texto.trim()) return;
@@ -211,7 +201,6 @@ export default function CrearFlujo() {
     }
   };
 
-  // --- Protocolo PDF: se lee en el navegador y se genera el flujo solo ---
   const handlePdfSelected = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -327,12 +316,12 @@ export default function CrearFlujo() {
       <TopBar title="Crear Nuevo Flujo" subtitle="Describe tu proceso con IA, constrúyelo a mano, o combina ambos." />
       <div className="flex-1 overflow-hidden flex bg-bg dark:bg-navyDeep transition-colors">
         {/* Panel izquierdo */}
-        <div className="w-[340px] shrink-0 border-r border-border dark:border-navyCard bg-white dark:bg-navy p-5 flex flex-col overflow-auto transition-colors">
+        <div className="w-[340px] shrink-0 border-r border-border dark:border-navyCard bg-white dark:bg-navy p-4 flex flex-col overflow-auto transition-colors">
           {/* Tabs de modo */}
-          <div className="flex rounded-lg border border-border dark:border-navyCard p-1 mb-4 bg-bg dark:bg-navyDeep">
+          <div className="flex rounded-lg border border-border dark:border-navyCard p-1 mb-3 bg-bg dark:bg-navyDeep">
             <button
               onClick={() => setMode("ia")}
-              className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold font-body rounded-md py-2 transition-colors cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold font-body rounded-md py-1.5 transition-colors cursor-pointer ${
                 mode === "ia" ? "bg-navy dark:bg-blue text-white" : "text-muted dark:text-faint hover:text-ink dark:hover:text-white"
               }`}
             >
@@ -340,7 +329,7 @@ export default function CrearFlujo() {
             </button>
             <button
               onClick={() => setMode("manual")}
-              className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold font-body rounded-md py-2 transition-colors cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold font-body rounded-md py-1.5 transition-colors cursor-pointer ${
                 mode === "manual" ? "bg-navy dark:bg-blue text-white" : "text-muted dark:text-faint hover:text-ink dark:hover:text-white"
               }`}
             >
@@ -363,7 +352,7 @@ export default function CrearFlujo() {
                     type="button"
                     onClick={() => pdfInputRef.current?.click()}
                     disabled={extractingPdf || loading}
-                    className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-ink dark:text-white border border-dashed border-border dark:border-navyCard rounded-lg py-2.5 font-body bg-bg dark:bg-navyDeep hover:border-blue transition-colors disabled:opacity-70 mb-2 cursor-pointer"
+                    className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-ink dark:text-white border border-dashed border-border dark:border-navyCard rounded-lg py-2 font-body bg-bg dark:bg-navyDeep hover:border-blue transition-colors disabled:opacity-70 mb-1.5 cursor-pointer"
                   >
                     {extractingPdf ? (
                       <>
@@ -375,24 +364,24 @@ export default function CrearFlujo() {
                       </>
                     )}
                   </button>
-                  <p className="text-[11px] text-faint font-body mb-3">
+                  <p className="text-[11px] text-faint font-body mb-2">
                     Sube un PDF: se lee el texto y se genera el flujo automáticamente.
                   </p>
                 </>
               )}
 
-              <label className="text-xs font-semibold text-ink dark:text-white font-body mb-2">
+              <label className="text-xs font-semibold text-ink dark:text-white font-body mb-1.5 block">
                 Describe tu flujo en lenguaje natural (Español)
               </label>
               <textarea
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
-                rows={6}
-                className="w-full text-sm rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-3 text-ink dark:text-white font-body outline-none focus:border-blue resize-none mb-3 transition-colors placeholder:text-muted/60 dark:placeholder:text-faint/50"
+                rows={4}
+                className="w-full text-sm rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-2.5 text-ink dark:text-white font-body outline-none focus:border-blue resize-none mb-2 transition-colors placeholder:text-muted/60 dark:placeholder:text-faint/50"
                 placeholder='Ej: "Crear un flujo para solicitudes de vacaciones: el empleado envía la solicitud, el gerente la revisa, si la aprueba, RRHH verifica días restantes y da el visto bueno final. Si se rechaza en algún paso, notificar al empleado."'
               />
 
-              <label className="flex items-start gap-2 text-xs text-muted dark:text-faint font-body mb-3 cursor-pointer">
+              <label className="flex items-start gap-2 text-xs text-muted dark:text-faint font-body mb-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={flujoGeneral}
@@ -405,7 +394,7 @@ export default function CrearFlujo() {
               </label>
 
               {!flujoGeneral && myOrg && (
-                <div className="flex items-start gap-2 text-[11px] text-muted dark:text-faint font-body rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-2.5 mb-3">
+                <div className="flex items-start gap-2 text-[11px] text-muted dark:text-faint font-body rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-2 mb-2">
                   <Building2 size={13} className="text-blue shrink-0 mt-0.5" />
                   <span>
                     <strong className="text-ink dark:text-white">{myOrg.nombre}</strong>
@@ -418,7 +407,7 @@ export default function CrearFlujo() {
               <button
                 onClick={() => handleGenerar()}
                 disabled={loading || extractingPdf}
-                className="w-full rounded-lg text-sm font-semibold text-white py-3 flex items-center justify-center gap-2 font-body disabled:opacity-70 bg-navy dark:bg-blue hover:opacity-90 transition-all cursor-pointer"
+                className="w-full rounded-lg text-sm font-semibold text-white py-2.5 flex items-center justify-center gap-2 font-body disabled:opacity-70 bg-navy dark:bg-blue hover:opacity-90 transition-all cursor-pointer"
               >
                 {loading ? (
                   <>
@@ -431,21 +420,21 @@ export default function CrearFlujo() {
                 )}
               </button>
 
-              <p className="text-[11px] text-faint font-body mt-2">
+              <p className="text-[11px] text-faint font-body mt-1.5">
                 Tip: luego puedes editarlo en "Construir manual".
               </p>
             </>
           ) : (
             <>
-              <label className="text-xs font-semibold text-ink dark:text-white font-body mb-2">
+              <label className="text-xs font-semibold text-ink dark:text-white font-body mb-1.5 block">
                 Agrega nodos al lienzo
               </label>
-              <div className="grid grid-cols-2 gap-2 mb-3">
+              <div className="grid grid-cols-2 gap-2 mb-2">
                 {NODE_TYPES.map((t) => (
                   <button
                     key={t.tipo}
                     onClick={() => handleAddNode(t)}
-                    className="flex items-center gap-1.5 text-xs font-medium text-ink dark:text-white border border-border dark:border-navyCard rounded-lg px-3 py-2.5 font-body bg-bg dark:bg-navyDeep hover:border-blue transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 text-xs font-medium text-ink dark:text-white border border-border dark:border-navyCard rounded-lg px-3 py-2 font-body bg-bg dark:bg-navyDeep hover:border-blue transition-colors cursor-pointer"
                   >
                     <t.icon size={14} className="text-blue" /> {t.label}
                   </button>
@@ -455,27 +444,27 @@ export default function CrearFlujo() {
               <button
                 onClick={handleDeleteSelection}
                 disabled={!hasSelection}
-                className="w-full flex items-center justify-center gap-2 text-xs font-medium text-red border border-red/30 rounded-lg px-3 py-2.5 font-body bg-redSoft dark:bg-red/10 hover:opacity-90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed mb-3 cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 text-xs font-medium text-red border border-red/30 rounded-lg px-3 py-2 font-body bg-redSoft dark:bg-red/10 hover:opacity-90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed mb-2 cursor-pointer"
               >
                 <Trash2 size={13} /> Eliminar seleccionado
               </button>
 
-              <ul className="text-[11px] leading-relaxed text-muted dark:text-faint font-body list-disc pl-4 space-y-1">
+              <ul className="text-[11px] leading-relaxed text-muted dark:text-faint font-body list-disc pl-4 space-y-0.5">
                 <li>Arrastra entre nodos para conectarlos.</li>
                 <li>Doble clic para editar un nodo o conexión.</li>
               </ul>
             </>
           )}
 
-          {error && <p className="text-xs text-red font-body mt-3">{error}</p>}
+          {error && <p className="text-xs text-red font-body mt-2">{error}</p>}
 
           {/* Caja AI Insight: colapsada por defecto */}
           {aiResult?.insight && (
-            <div className="mt-5 rounded-xl bg-blueSoft dark:bg-blue/15 border border-blue/20 dark:border-blue/30 transition-colors overflow-hidden">
+            <div className="mt-3 rounded-xl bg-blueSoft dark:bg-blue/15 border border-blue/20 dark:border-blue/30 transition-colors overflow-hidden">
               <button
                 type="button"
                 onClick={() => setInsightOpen((v) => !v)}
-                className="w-full flex items-center justify-between gap-2 p-3 text-left cursor-pointer"
+                className="w-full flex items-center justify-between gap-2 p-2.5 text-left cursor-pointer"
               >
                 <span className="flex items-center gap-1.5 text-xs font-semibold text-ink dark:text-white font-body min-w-0">
                   <Lightbulb size={13} className="text-blue dark:text-blue-400 shrink-0" />
@@ -493,11 +482,11 @@ export default function CrearFlujo() {
               </button>
 
               {insightOpen && (
-                <div className="px-3.5 pb-3.5">
-                  <p className="text-xs leading-relaxed text-muted dark:text-faint font-body mb-2">
+                <div className="px-3 pb-3">
+                  <p className="text-xs leading-relaxed text-muted dark:text-faint font-body mb-1.5">
                     <strong className="text-ink dark:text-white">Optimización:</strong> {aiResult.insight.optimizacion}
                   </p>
-                  <p className="text-xs leading-relaxed text-muted dark:text-faint font-body mb-2">
+                  <p className="text-xs leading-relaxed text-muted dark:text-faint font-body mb-1.5">
                     <strong className="text-ink dark:text-white">Sugerencia:</strong> {aiResult.insight.sugerencia}
                   </p>
                   <p className="text-xs text-green dark:text-emerald-400 font-semibold font-body">
@@ -510,8 +499,8 @@ export default function CrearFlujo() {
 
           {/* Nombre + Guardar */}
           {hasNodes && (
-            <div className="mt-5">
-              <p className="text-xs font-semibold text-ink dark:text-white font-body mb-2">Nombre del flujo</p>
+            <div className="mt-3">
+              <p className="text-xs font-semibold text-ink dark:text-white font-body mb-1.5">Nombre del flujo</p>
               <input
                 value={flowName}
                 onChange={(e) => {
@@ -519,14 +508,14 @@ export default function CrearFlujo() {
                   markDirty();
                 }}
                 placeholder="Nombre del flujo"
-                className="w-full text-sm rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-2.5 text-ink dark:text-white font-body outline-none focus:border-blue mb-3 transition-colors"
+                className="w-full text-sm rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-2 text-ink dark:text-white font-body outline-none focus:border-blue mb-2 transition-colors"
               />
 
-              <p className="text-xs font-semibold text-ink dark:text-white font-body mb-2">Guardar flujo</p>
+              <p className="text-xs font-semibold text-ink dark:text-white font-body mb-1.5">Guardar flujo</p>
               <button
                 onClick={handleGuardar}
                 disabled={saving || saved}
-                className={`w-full flex items-center justify-center gap-2 text-xs font-semibold text-white rounded-lg px-3 py-2.5 font-body disabled:opacity-70 mb-3 transition-colors cursor-pointer ${
+                className={`w-full flex items-center justify-center gap-2 text-xs font-semibold text-white rounded-lg px-3 py-2 font-body disabled:opacity-70 mb-2 transition-colors cursor-pointer ${
                   saved ? "bg-green dark:bg-emerald-600" : "bg-blue hover:bg-blue/90"
                 }`}
               >
@@ -543,12 +532,12 @@ export default function CrearFlujo() {
                 )}
               </button>
 
-              <p className="text-xs font-semibold text-ink dark:text-white font-body mb-2">Generación de documentos</p>
-              <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold text-ink dark:text-white font-body mb-1.5">Generación de documentos</p>
+              <div className="flex flex-col gap-1.5">
                 <button
                   onClick={handleGenerarReporte}
                   disabled={reportLoading}
-                  className="flex items-center gap-2 text-xs font-medium text-ink dark:text-white border border-border dark:border-navyCard rounded-lg px-3 py-2.5 font-body bg-bg dark:bg-navyDeep hover:border-muted transition-colors disabled:opacity-70 cursor-pointer"
+                  className="flex items-center gap-2 text-xs font-medium text-ink dark:text-white border border-border dark:border-navyCard rounded-lg px-3 py-2 font-body bg-bg dark:bg-navyDeep hover:border-muted transition-colors disabled:opacity-70 cursor-pointer"
                 >
                   {reportLoading ? (
                     <Loader2 size={14} className="animate-spin text-red" />
@@ -560,7 +549,7 @@ export default function CrearFlujo() {
                 <button
                   onClick={handleDescargarPDF}
                   disabled={!reportText}
-                  className="flex items-center gap-2 text-xs font-medium text-ink dark:text-white border border-border dark:border-navyCard rounded-lg px-3 py-2.5 font-body bg-bg dark:bg-navyDeep hover:border-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  className="flex items-center gap-2 text-xs font-medium text-ink dark:text-white border border-border dark:border-navyCard rounded-lg px-3 py-2 font-body bg-bg dark:bg-navyDeep hover:border-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <FileDown size={14} className="text-blue" /> Descargar PDF del Reporte
                 </button>
@@ -570,13 +559,13 @@ export default function CrearFlujo() {
                 <button
                   type="button"
                   onClick={() => setPreviewOpen(true)}
-                  className="mt-3 w-full flex items-center justify-center gap-2 text-xs font-medium text-blue border border-blue/30 rounded-lg px-3 py-2.5 font-body bg-blueSoft dark:bg-blue/10 hover:opacity-90 transition-colors cursor-pointer"
+                  className="mt-2 w-full flex items-center justify-center gap-2 text-xs font-medium text-blue border border-blue/30 rounded-lg px-3 py-2 font-body bg-blueSoft dark:bg-blue/10 hover:opacity-90 transition-colors cursor-pointer"
                 >
                   <Eye size={13} /> Ver vista previa del PDF
                 </button>
               )}
               {reportText && (
-                <p className="mt-3 text-[10px] text-green dark:text-emerald-400 font-body">
+                <p className="mt-2 text-[10px] text-green dark:text-emerald-400 font-body">
                   ✓ Guardado permanentemente — disponible en Reportes → "Insights de IA guardados"
                 </p>
               )}
