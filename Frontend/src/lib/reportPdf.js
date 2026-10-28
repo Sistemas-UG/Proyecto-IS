@@ -70,81 +70,158 @@ function checkPageBreak(doc, y, needed, titulo) {
   return y;
 }
 
-// Interpreta el texto del reporte (Markdown ligero: "## Título", "- viñeta",
-// "**Clave:** valor", párrafos normales) y lo dibuja en el PDF.
+// Interpreta el texto estructurado del reporte proveniente de la IA y lo maqueta con diseño corporativo
 function escribirContenido(doc, texto, yInicial, titulo) {
   let y = yInicial;
   const lines = String(texto || "").split("\n");
 
-  for (const raw of lines) {
-    const line = raw.trimEnd();
+  for (let raw of lines) {
+    let line = raw.trim();
 
-    if (!line.trim()) {
-      y += 3;
+    if (!line) {
+      y += 2.5;
       continue;
     }
 
-    if (/^##\s+/.test(line)) {
-      y = checkPageBreak(doc, y, 16, titulo);
-      y += 3;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(13);
-      doc.setTextColor(...COLOR_PRIMARY);
-      doc.text(line.replace(/^##\s+/, ""), MARGIN, y);
+    // 1. Separadores horizontales (---, ***, ___) -> Se convierten en líneas divisorias elegantes
+    if (/^[\-*_]{3,}$/.test(line)) {
+      y = checkPageBreak(doc, y, 8, titulo);
       y += 2;
-      doc.setDrawColor(...COLOR_ACCENT);
-      doc.setLineWidth(0.6);
-      doc.line(MARGIN, y, MARGIN + 30, y);
-      y += 7;
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.4);
+      doc.line(MARGIN, y, PAGE_W - MARGIN, y);
+      y += 6;
       continue;
     }
 
-    if (/^-\s+/.test(line)) {
-      const contenido = line.replace(/^-\s+/, "").replace(/\*\*(.+?)\*\*/g, "$1");
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10.5);
-      const wrapped = doc.splitTextToSize(contenido, CONTENT_W - 8);
-      y = checkPageBreak(doc, y, wrapped.length * 5 + 2, titulo);
+    // 2. Encabezados de Sección (##, ###, # o numerados como "1. Resumen", "2. Identificación")
+    const headerMatch = line.match(/^(?:#{1,3}|\d+[\.\)])\s+(.+)$/);
+    if (headerMatch) {
+      const titleText = headerMatch[1].replace(/\*\*/g, "").trim();
+      y = checkPageBreak(doc, y, 16, titulo);
+      y += 4;
+
+      // Caja/Acento lateral para los títulos de sección
+      doc.setFillColor(241, 245, 249);
+      doc.roundedRect(MARGIN, y - 4, CONTENT_W, 8, 1.5, 1.5, "F");
       doc.setFillColor(...COLOR_ACCENT);
-      doc.circle(MARGIN + 1.3, y - 1.3, 0.8, "F");
-      doc.setTextColor(...COLOR_TEXT);
-      doc.text(wrapped, MARGIN + 6, y);
-      y += wrapped.length * 5 + 2;
+      doc.rect(MARGIN, y - 4, 2.5, 8, "F");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(...COLOR_PRIMARY);
+      doc.text(titleText, MARGIN + 6, y + 1.5);
+      y += 9;
       continue;
     }
 
-    const kv = line.match(/^\*\*(.+?):\*\*\s*(.*)$/);
-    if (kv) {
+    // 3. Viñetas / Listas (*, -, +)
+    const bulletMatch = line.match(/^[\-\*\+]\s+(.+)$/);
+    if (bulletMatch) {
+      const bulletBody = bulletMatch[1].trim();
+      const kvInBullet = bulletBody.match(/^\*\*(.+?)\*\*:?\s*(.*)$/);
+
+      y = checkPageBreak(doc, y, 8, titulo);
+
+      // Dibujar viñeta
+      doc.setFillColor(...COLOR_ACCENT);
+      doc.circle(MARGIN + 2, y - 1.2, 0.9, "F");
+
+      if (kvInBullet) {
+        // Viñeta con título en negrita: * **Título:** Descripción
+        const keyText = kvInBullet[1].replace(/\*\*/g, "").trim();
+        const valText = kvInBullet[2].replace(/\*\*/g, "").trim();
+        const keyFormatted = keyText.endsWith(":") ? keyText : `${keyText}:`;
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        doc.setTextColor(...COLOR_PRIMARY);
+        const keyWidth = doc.getTextWidth(`${keyFormatted} `);
+
+        doc.text(keyFormatted, MARGIN + 6, y);
+
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(...COLOR_TEXT);
+
+        if (valText) {
+          const availW = CONTENT_W - 8 - keyWidth;
+          if (availW > 40) {
+            const valWrapped = doc.splitTextToSize(valText, availW);
+            doc.text(valWrapped[0], MARGIN + 6 + keyWidth, y);
+            if (valWrapped.length > 1) {
+              const rest = doc.splitTextToSize(valWrapped.slice(1).join(" "), CONTENT_W - 8);
+              y += 4.6;
+              doc.text(rest, MARGIN + 6, y);
+              y += (rest.length - 1) * 4.6;
+            }
+          } else {
+            const valWrappedFull = doc.splitTextToSize(valText, CONTENT_W - 8);
+            y += 4.6;
+            doc.text(valWrappedFull, MARGIN + 6, y);
+            y += (valWrappedFull.length - 1) * 4.6;
+          }
+        }
+        y += 5;
+      } else {
+        // Viñeta estándar de texto
+        const cleanText = bulletBody.replace(/\*\*/g, "");
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9.5);
+        doc.setTextColor(...COLOR_TEXT);
+        const wrapped = doc.splitTextToSize(cleanText, CONTENT_W - 8);
+        y = checkPageBreak(doc, y, wrapped.length * 4.6, titulo);
+        doc.text(wrapped, MARGIN + 6, y);
+        y += wrapped.length * 4.6 + 1.5;
+      }
+      continue;
+    }
+
+    // 4. Pares Clave-Valor sin viñeta: **Fecha:** 25 de mayo
+    const kvMatch = line.match(/^\*\*(.+?)\*\*:?\s*(.*)$/);
+    if (kvMatch) {
+      const keyText = kvMatch[1].replace(/\*\*/g, "").trim();
+      const valText = kvMatch[2].replace(/\*\*/g, "").trim();
+      const keyFormatted = keyText.endsWith(":") ? keyText : `${keyText}:`;
+
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(10.5);
-      const labelW = doc.getTextWidth(`${kv[1]}: `);
-      const wrapped = doc.splitTextToSize(kv[2], CONTENT_W - labelW);
-      y = checkPageBreak(doc, y, wrapped.length * 5 + 2, titulo);
+      doc.setFontSize(9.5);
       doc.setTextColor(...COLOR_PRIMARY);
-      doc.text(`${kv[1]}:`, MARGIN, y);
+      const keyWidth = doc.getTextWidth(`${keyFormatted} `);
+
+      y = checkPageBreak(doc, y, 6, titulo);
+      doc.text(keyFormatted, MARGIN, y);
+
       doc.setFont("helvetica", "normal");
       doc.setTextColor(...COLOR_TEXT);
-      doc.text(wrapped, MARGIN + labelW, y);
-      y += wrapped.length * 5 + 2;
+      if (valText) {
+        const valWrapped = doc.splitTextToSize(valText, CONTENT_W - keyWidth);
+        doc.text(valWrapped[0], MARGIN + keyWidth, y);
+        if (valWrapped.length > 1) {
+          const rest = doc.splitTextToSize(valWrapped.slice(1).join(" "), CONTENT_W);
+          y += 4.6;
+          doc.text(rest, MARGIN, y);
+          y += (rest.length - 1) * 4.6;
+        }
+      }
+      y += 5;
       continue;
     }
 
-    const plano = line.replace(/\*\*(.+?)\*\*/g, "$1");
+    // 5. Párrafo de texto normal (limpia cualquier asterisco suelto)
+    const cleanLine = line.replace(/\*\*/g, "");
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(10.5);
-    const wrapped = doc.splitTextToSize(plano, CONTENT_W);
-    y = checkPageBreak(doc, y, wrapped.length * 5 + 2, titulo);
+    doc.setFontSize(9.5);
     doc.setTextColor(...COLOR_TEXT);
+    const wrapped = doc.splitTextToSize(cleanLine, CONTENT_W);
+    y = checkPageBreak(doc, y, wrapped.length * 4.6, titulo);
     doc.text(wrapped, MARGIN, y);
-    y += wrapped.length * 5 + 2;
+    y += wrapped.length * 4.6 + 2;
   }
 
   return y;
 }
 
-// Dibuja el diagrama del flujo (nodos + conexiones) usando el mismo layout
-// de dagre que el lienzo (flowLayout.js), partido en tantas páginas como
-// haga falta para que ningún nodo quede cortado.
+// Dibuja el diagrama visual del flujo en el PDF
 function dibujarFlujo(doc, flow, titulo) {
   if (!flow?.nodes?.length) return;
 
@@ -238,14 +315,14 @@ export function buildReportDoc({ titulo, texto, generatedEn, ahorroHoras, flow }
   let y = 34;
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(19);
+  doc.setFontSize(18);
   doc.setTextColor(...COLOR_PRIMARY);
   const tituloWrapped = doc.splitTextToSize(tituloFinal, CONTENT_W);
   doc.text(tituloWrapped, MARGIN, y);
   y += tituloWrapped.length * 7 + 2;
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9.5);
+  doc.setFontSize(9);
   doc.setTextColor(...COLOR_MUTED);
   doc.text(`Generado el ${formatFechaLarga(generatedEn)}`, MARGIN, y);
   y += 8;
@@ -254,12 +331,12 @@ export function buildReportDoc({ titulo, texto, generatedEn, ahorroHoras, flow }
     doc.setFillColor(236, 253, 245);
     doc.setDrawColor(16, 185, 129);
     doc.setLineWidth(0.4);
-    doc.roundedRect(MARGIN, y, 64, 12, 2, 2, "FD");
+    doc.roundedRect(MARGIN, y, 64, 11, 2, 2, "FD");
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
+    doc.setFontSize(9.5);
     doc.setTextColor(6, 95, 70);
-    doc.text(`Ahorro estimado: ${ahorroHoras} hrs`, MARGIN + 32, y + 7.5, { align: "center" });
-    y += 20;
+    doc.text(`Ahorro estimado: ${ahorroHoras} hrs`, MARGIN + 32, y + 7, { align: "center" });
+    y += 18;
   } else {
     y += 2;
   }
@@ -269,7 +346,7 @@ export function buildReportDoc({ titulo, texto, generatedEn, ahorroHoras, flow }
   doc.line(MARGIN, y, PAGE_W - MARGIN, y);
   y += 8;
 
-  escribirContenido(doc, texto, y, tituloFinal);
+  y = escribirContenido(doc, texto, y, tituloFinal);
   dibujarFlujo(doc, flow, tituloFinal);
 
   const totalPages = doc.internal.getNumberOfPages();
