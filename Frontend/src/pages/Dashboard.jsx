@@ -41,7 +41,11 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   // Validación de rol Administrador
-  const isAdmin = user?.role === "admin";
+  const isAdmin =
+    user?.rol === "admin" ||
+    user?.role === "admin" ||
+    user?.esAdmin === true ||
+    user?.tipo === "admin";
 
   // --- PERSISTENCIA LOCAL DE SESIÓN ---
   const [flows, setFlows] = useState(() => {
@@ -147,8 +151,10 @@ export default function Dashboard() {
     };
   }, []);
 
-  // --- CAMBIO DE ESTADO (Activo <-> Completado) ---
+  // --- CAMBIO DE ESTADO (Solo ejecutable si es Admin) ---
   const handleToggleStatus = async (flow) => {
+    if (!isAdmin) return;
+
     const nuevoEstado = flow.estado === "Completado" ? "Activo" : "Completado";
 
     touchFlow(flow.id);
@@ -293,17 +299,29 @@ export default function Dashboard() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      {/* Estado clicable: alterna Activo <-> Completado */}
-                      <button
-                        type="button"
-                        onClick={() => handleToggleStatus(f)}
-                        disabled={updatingStatusId === f.id}
-                        title={completado ? "Clic para reactivar el flujo" : "Clic para marcar como completado"}
-                        className="hover:scale-105 active:scale-95 transition-transform cursor-pointer inline-flex items-center whitespace-nowrap"
-                      >
-                        {updatingStatusId === f.id ? (
-                          <Loader2 size={13} className="animate-spin text-blue" />
-                        ) : (
+                      {/* Estado: Clicable solo si es Admin. Para usuario normal es solo visualización */}
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStatus(f)}
+                          disabled={updatingStatusId === f.id}
+                          title={completado ? "Clic para reactivar el flujo" : "Clic para marcar como completado"}
+                          className="hover:scale-105 active:scale-95 transition-transform cursor-pointer inline-flex items-center whitespace-nowrap"
+                        >
+                          {updatingStatusId === f.id ? (
+                            <Loader2 size={13} className="animate-spin text-blue" />
+                          ) : (
+                            <Pill tone={f.estadoTone}>
+                              {f.estadoLabel === "Completado" && <CheckCircle2 size={10} className="inline mr-1" />}
+                              {f.estadoLabel === "Requiere atención" && (
+                                <AlertTriangle size={10} className="inline mr-1" />
+                              )}
+                              {f.estadoLabel || "Activo"}
+                            </Pill>
+                          )}
+                        </button>
+                      ) : (
+                        <div className="inline-flex items-center whitespace-nowrap">
                           <Pill tone={f.estadoTone}>
                             {f.estadoLabel === "Completado" && <CheckCircle2 size={10} className="inline mr-1" />}
                             {f.estadoLabel === "Requiere atención" && (
@@ -311,10 +329,10 @@ export default function Dashboard() {
                             )}
                             {f.estadoLabel || "Activo"}
                           </Pill>
-                        )}
-                      </button>
+                        </div>
+                      )}
 
-                      {/* Botón basurero: SOLO visible para el usuario Admin */}
+                      {/* Botón basurero: Exclusivo de Admin */}
                       {isAdmin && (
                         <button
                           type="button"

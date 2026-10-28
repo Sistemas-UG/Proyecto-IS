@@ -78,7 +78,10 @@ export default function MisFlujos() {
     navigate(`/flujos/${id}`);
   };
 
+  // Cambio de estado (Solo ejecutable si el usuario es Admin)
   const handleToggleStatus = async (flow) => {
+    if (!isAdmin) return;
+
     const nuevoEstado = flow.estado === "Completado" ? "Activo" : "Completado";
 
     touchFlow(flow.id);
@@ -250,22 +253,35 @@ export default function MisFlujos() {
                   </span>
 
                   <div>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleStatus(f)}
-                      disabled={updatingStatusId === f.id}
-                      title={
-                        completado
-                          ? "Haz clic para reactivar el flujo"
-                          : `Sin actividad hace ${f.diasSinActividad} ${
-                              f.diasSinActividad === 1 ? "día" : "días"
-                            } · clic para marcar como completado`
-                      }
-                      className="hover:scale-105 active:scale-95 transition-transform cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap"
-                    >
-                      {updatingStatusId === f.id ? (
-                        <Loader2 size={13} className="animate-spin text-blue" />
-                      ) : (
+                    {/* Botón interactivo si es Admin, Píldora de solo lectura si es Usuario */}
+                    {isAdmin ? (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStatus(f)}
+                        disabled={updatingStatusId === f.id}
+                        title={
+                          completado
+                            ? "Haz clic para reactivar el flujo"
+                            : `Sin actividad hace ${f.diasSinActividad} ${
+                                f.diasSinActividad === 1 ? "día" : "días"
+                              } · clic para marcar como completado`
+                        }
+                        className="hover:scale-105 active:scale-95 transition-transform cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap"
+                      >
+                        {updatingStatusId === f.id ? (
+                          <Loader2 size={13} className="animate-spin text-blue" />
+                        ) : (
+                          <Pill tone={f.estadoTone}>
+                            {f.estadoLabel === "Completado" && <CheckCircle2 size={11} className="inline mr-1" />}
+                            {f.estadoLabel === "Requiere atención" && (
+                              <AlertTriangle size={11} className="inline mr-1" />
+                            )}
+                            {f.estadoLabel}
+                          </Pill>
+                        )}
+                      </button>
+                    ) : (
+                      <div className="inline-flex items-center whitespace-nowrap">
                         <Pill tone={f.estadoTone}>
                           {f.estadoLabel === "Completado" && <CheckCircle2 size={11} className="inline mr-1" />}
                           {f.estadoLabel === "Requiere atención" && (
@@ -273,8 +289,8 @@ export default function MisFlujos() {
                           )}
                           {f.estadoLabel}
                         </Pill>
-                      )}
-                    </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-end gap-2">
