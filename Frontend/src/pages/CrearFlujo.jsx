@@ -40,7 +40,13 @@ function toRawFlow(nodes, edges) {
 
 export default function CrearFlujo() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  
+  // Validación flexible de rol de administrador
+  const isAdmin =
+    user?.rol === "admin" ||
+    user?.role === "admin" ||
+    user?.esAdmin === true ||
+    user?.tipo === "admin";
 
   const [mode, setMode] = useState("ia");
 
@@ -373,11 +379,13 @@ export default function CrearFlujo() {
               <label className="text-xs font-semibold text-ink dark:text-white font-body mb-1.5 block">
                 Describe tu flujo en lenguaje natural (Español)
               </label>
+              
+              {/* Textarea sin barra de scroll visible */}
               <textarea
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
                 rows={4}
-                className="w-full text-sm rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-2.5 text-ink dark:text-white font-body outline-none focus:border-blue resize-none mb-2 transition-colors placeholder:text-muted/60 dark:placeholder:text-faint/50"
+                className="w-full text-sm rounded-lg border border-border dark:border-navyCard bg-bg dark:bg-navyDeep p-2.5 text-ink dark:text-white font-body outline-none focus:border-blue resize-none mb-2 transition-colors placeholder:text-muted/60 dark:placeholder:text-faint/50 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
                 placeholder='Ej: "Crear un flujo para solicitudes de vacaciones: el empleado envía la solicitud, el gerente la revisa, si la aprueba, RRHH verifica días restantes y da el visto bueno final. Si se rechaza en algún paso, notificar al empleado."'
               />
 
