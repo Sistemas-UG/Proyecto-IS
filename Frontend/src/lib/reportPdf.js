@@ -14,8 +14,8 @@ const COLOR_MUTED = [100, 116, 139];
 const COLOR_TEXT = [30, 41, 59];
 
 const NODE_COLORS = {
-  inicio: { fill: [15, 27, 51], text: [255, 255, 255], border: [15, 27, 51] },
-  fin: { fill: [220, 252, 231], text: [6, 95, 70], border: [16, 185, 129] },
+  inicio: { fill: [255, 255, 255], text: [15, 27, 51], border: [203, 213, 225] },
+  fin: { fill: [255, 255, 255], text: [15, 27, 51], border: [203, 213, 225] },
   decision: { fill: [255, 255, 255], text: [30, 41, 59], border: [59, 130, 246] },
   paso: { fill: [255, 255, 255], text: [30, 41, 59], border: [203, 213, 225] },
 };
@@ -70,7 +70,7 @@ function checkPageBreak(doc, y, needed, titulo) {
   return y;
 }
 
-// Interpreta el texto estructurado del reporte proveniente de la IA y lo maqueta con diseño corporativo
+// Interpreta el texto estructurado del reporte y lo maqueta con diseño corporativo
 function escribirContenido(doc, texto, yInicial, titulo) {
   let y = yInicial;
   const lines = String(texto || "").split("\n");
@@ -83,7 +83,7 @@ function escribirContenido(doc, texto, yInicial, titulo) {
       continue;
     }
 
-    // 1. Separadores horizontales (---, ***, ___) -> Se convierten en líneas divisorias elegantes
+    // 1. Separadores horizontales (---, ***, ___)
     if (/^[\-*_]{3,}$/.test(line)) {
       y = checkPageBreak(doc, y, 8, titulo);
       y += 2;
@@ -94,14 +94,13 @@ function escribirContenido(doc, texto, yInicial, titulo) {
       continue;
     }
 
-    // 2. Encabezados de Sección (##, ###, # o numerados como "1. Resumen", "2. Identificación")
+    // 2. Encabezados de Sección
     const headerMatch = line.match(/^(?:#{1,3}|\d+[\.\)])\s+(.+)$/);
     if (headerMatch) {
       const titleText = headerMatch[1].replace(/\*\*/g, "").trim();
       y = checkPageBreak(doc, y, 16, titulo);
       y += 4;
 
-      // Caja/Acento lateral para los títulos de sección
       doc.setFillColor(241, 245, 249);
       doc.roundedRect(MARGIN, y - 4, CONTENT_W, 8, 1.5, 1.5, "F");
       doc.setFillColor(...COLOR_ACCENT);
@@ -123,12 +122,10 @@ function escribirContenido(doc, texto, yInicial, titulo) {
 
       y = checkPageBreak(doc, y, 8, titulo);
 
-      // Dibujar viñeta
       doc.setFillColor(...COLOR_ACCENT);
       doc.circle(MARGIN + 2, y - 1.2, 0.9, "F");
 
       if (kvInBullet) {
-        // Viñeta con título en negrita: * **Título:** Descripción
         const keyText = kvInBullet[1].replace(/\*\*/g, "").trim();
         const valText = kvInBullet[2].replace(/\*\*/g, "").trim();
         const keyFormatted = keyText.endsWith(":") ? keyText : `${keyText}:`;
@@ -163,7 +160,6 @@ function escribirContenido(doc, texto, yInicial, titulo) {
         }
         y += 5;
       } else {
-        // Viñeta estándar de texto
         const cleanText = bulletBody.replace(/\*\*/g, "");
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9.5);
@@ -176,7 +172,7 @@ function escribirContenido(doc, texto, yInicial, titulo) {
       continue;
     }
 
-    // 4. Pares Clave-Valor sin viñeta: **Fecha:** 25 de mayo
+    // 4. Pares Clave-Valor sin viñeta
     const kvMatch = line.match(/^\*\*(.+?)\*\*:?\s*(.*)$/);
     if (kvMatch) {
       const keyText = kvMatch[1].replace(/\*\*/g, "").trim();
@@ -207,7 +203,7 @@ function escribirContenido(doc, texto, yInicial, titulo) {
       continue;
     }
 
-    // 5. Párrafo de texto normal (limpia cualquier asterisco suelto)
+    // 5. Párrafo normal
     const cleanLine = line.replace(/\*\*/g, "");
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9.5);
@@ -221,7 +217,7 @@ function escribirContenido(doc, texto, yInicial, titulo) {
   return y;
 }
 
-// Dibuja el diagrama visual del flujo en el PDF
+// Dibuja el diagrama del flujo totalmente centrado y estilizado
 function dibujarFlujo(doc, flow, titulo) {
   if (!flow?.nodes?.length) return;
 
@@ -230,19 +226,22 @@ function dibujarFlujo(doc, flow, titulo) {
 
   let y = nuevaPagina(doc, titulo);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
+  doc.setFontSize(14);
   doc.setTextColor(...COLOR_PRIMARY);
   doc.text("Diagrama del flujo", MARGIN, y);
-  y += 8;
+  y += 10;
 
+  // Escala y cálculo de centrado horizontal exacto
   const scale = Math.min(CONTENT_W / Math.max(geometry.width, 1), 1);
   const pxToMm = (px) => px * scale;
+  const scaledWidth = geometry.width * scale;
+  const originX = MARGIN + Math.max(0, (CONTENT_W - scaledWidth) / 2);
+
   const pageUsableH = PAGE_H - FOOTER_SAFE - y;
   const stripHeightPx = pageUsableH / scale;
 
   let offsetY = 0;
   let pageIndex = 0;
-  const originX = MARGIN;
 
   while (offsetY < geometry.height && pageIndex < 10) {
     let originY = y;
@@ -250,6 +249,7 @@ function dibujarFlujo(doc, flow, titulo) {
       originY = nuevaPagina(doc, titulo);
     }
 
+    // Dibujar Conexiones/Líneas
     geometry.edges.forEach((e) => {
       const pts = e.points || [];
       for (let i = 0; i < pts.length - 1; i++) {
@@ -257,6 +257,7 @@ function dibujarFlujo(doc, flow, titulo) {
         const p2 = pts[i + 1];
         if (p1.y - offsetY < -40 && p2.y - offsetY < -40) continue;
         if (p1.y - offsetY > stripHeightPx + 40 && p2.y - offsetY > stripHeightPx + 40) continue;
+        
         doc.setDrawColor(148, 163, 184);
         doc.setLineWidth(0.35);
         doc.line(
@@ -266,17 +267,28 @@ function dibujarFlujo(doc, flow, titulo) {
           originY + pxToMm(p2.y - offsetY)
         );
       }
+
+      // Dibujar etiqueta de decisión ("Sí", "No") con fondo blanco para que no la cruce la línea
       if (e.label && pts.length) {
-        const mid = pts[Math.floor(pts.length / 2)];
+        const midIndex = Math.floor(pts.length / 2);
+        const mid = pts[midIndex];
         if (mid && mid.y - offsetY >= -20 && mid.y - offsetY <= stripHeightPx + 20) {
-          doc.setFont("helvetica", "normal");
+          const lx = originX + pxToMm(mid.x);
+          const ly = originY + pxToMm(mid.y - offsetY);
+
+          doc.setFont("helvetica", "bold");
           doc.setFontSize(7.5);
           doc.setTextColor(100, 116, 139);
-          doc.text(e.label, originX + pxToMm(mid.x) + 2, originY + pxToMm(mid.y - offsetY));
+          
+          const tw = doc.getTextWidth(e.label);
+          doc.setFillColor(255, 255, 255);
+          doc.rect(lx - tw / 2 - 1.5, ly - 2.5, tw + 3, 4, "F");
+          doc.text(e.label, lx, ly + 0.5, { align: "center" });
         }
       }
     });
 
+    // Dibujar Nodos
     geometry.nodes.forEach((n) => {
       if (n.y + n.height < offsetY - 5 || n.y > offsetY + stripHeightPx + 5) return;
       const colors = NODE_COLORS[n.type] || NODE_COLORS.paso;
@@ -285,20 +297,28 @@ function dibujarFlujo(doc, flow, titulo) {
       const w = pxToMm(n.width);
       const h = pxToMm(n.height);
 
+      // Caja del nodo
       doc.setFillColor(...colors.fill);
       doc.setDrawColor(...colors.border);
       doc.setLineWidth(0.4);
-      doc.roundedRect(x, yN, w, h, 1.5, 1.5, "FD");
+      doc.roundedRect(x, yN, w, h, 2, 2, "FD");
 
+      // Texto interno del nodo
       doc.setFont("helvetica", "bold");
       doc.setFontSize(7.5);
       doc.setTextColor(...colors.text);
-      const wrapped = doc.splitTextToSize(n.label || "", Math.max(w - 4, 10));
-      const maxLines = Math.max(1, Math.floor((h - 2) / 3.2));
+
+      const maxTextW = Math.max(w - 4, 8);
+      const wrapped = doc.splitTextToSize(n.label || "", maxTextW);
+      const lineHeight = 3.2;
+      const maxLines = Math.max(1, Math.floor((h - 2) / lineHeight));
       const shown = wrapped.slice(0, maxLines);
-      const startTy = yN + h / 2 - ((shown.length - 1) * 1.6);
+
+      const totalTextH = shown.length * lineHeight;
+      const startTy = yN + (h - totalTextH) / 2 + 2.2;
+
       shown.forEach((ln, i) => {
-        doc.text(ln, x + w / 2, startTy + i * 3.2, { align: "center" });
+        doc.text(ln, x + w / 2, startTy + i * lineHeight, { align: "center" });
       });
     });
 
@@ -358,7 +378,7 @@ export function buildReportDoc({ titulo, texto, generatedEn, ahorroHoras, flow }
   return doc;
 }
 
-/** Devuelve { blob, filename } listo para vista previa (iframe) o descarga. */
+/** Devuelve { blob, filename } listo para vista previa o descarga */
 export function crearReportePDF(opts) {
   const doc = buildReportDoc(opts);
   return {
