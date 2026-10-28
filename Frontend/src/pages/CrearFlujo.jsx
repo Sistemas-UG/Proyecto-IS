@@ -566,7 +566,7 @@ export default function CrearFlujo() {
               )}
               {reportText && (
                 <p className="mt-2 text-[10px] text-green dark:text-emerald-400 font-body">
-                  ✓ Guardado permanentemente — disponible en Reportes → "Insights de IA guardados"
+                  reporte generado con éxito. Puedes descargarlo o ver la vista previa.
                 </p>
               )}
             </div>
