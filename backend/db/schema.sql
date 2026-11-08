@@ -1,17 +1,7 @@
--- =====================================================================
--- SmartFlow AI — Esquema de base de datos (PostgreSQL) — DESDE CERO
--- =====================================================================
--- Nombres de tabla/columna EN ESPAÑOL, a propósito: así coinciden 1:1
--- con lo que ya esperan auth.controller.js y flows.controller.js
--- (usuarios, organizaciones, flujos, nodos_flujo, conexiones_flujo),
--- y con el diagrama entidad-relación del proyecto.
---
--- Cómo aplicarlo (con el usuario/base que ya tienes en tu .env):
---   dropdb  smartflow_db   -- (si ya existía y quieres empezar limpio)
---   createdb smartflow_db
---   psql -U postgres -d smartflow_db -f db/schema.sql
---   psql -U postgres -d smartflow_db -f db/seed.sql      -- datos de ejemplo
--- =====================================================================
+
+-- SmartFlow AI — Esquema de base de datos PostgreSQL en Cloud SQL (SQL DDL)
+
+
 
 DROP TABLE IF EXISTS archivos_adjuntos CASCADE;
 DROP TABLE IF EXISTS tareas CASCADE;
@@ -25,15 +15,8 @@ DROP TABLE IF EXISTS usuarios CASCADE;
 DROP TABLE IF EXISTS organizaciones CASCADE;
 DROP VIEW IF EXISTS org_kpis CASCADE;
 
--- ---------------------------------------------------------------------
 -- 1) organizaciones
--- ---------------------------------------------------------------------
--- No está dibujada en el diagrama que mandaste, pero SÍ es indispensable:
--- auth.controller.js (login/register) y flows.controller.js ya la usan
--- (organizacion_id) para que cada empresa vea solo sus propios datos, y
--- "jerarquia" es el contexto que se le pasa a la IA (ver ai.service.js)
--- para que no invente roles que esa empresa no tiene (gerente, junta
--- directiva, etc.) — lo que armamos en la fase anterior.
+
 CREATE TABLE organizaciones (
   id              SERIAL PRIMARY KEY,
   nombre          VARCHAR(150) NOT NULL,
@@ -43,9 +26,8 @@ CREATE TABLE organizaciones (
   actualizado_en  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- ---------------------------------------------------------------------
--- 2) usuarios   (== "Usuarios" del diagrama)
--- ---------------------------------------------------------------------
+-- 2) usuarios   
+
 CREATE TABLE usuarios (
   id               SERIAL PRIMARY KEY,
   organizacion_id  INTEGER NOT NULL REFERENCES organizaciones(id) ON DELETE CASCADE,
@@ -58,9 +40,9 @@ CREATE TABLE usuarios (
 
 CREATE INDEX idx_usuarios_organizacion ON usuarios(organizacion_id);
 
--- ---------------------------------------------------------------------
--- 3) flujos   (== "Flujos" del diagrama; propietario_id = relación "inicia")
--- ---------------------------------------------------------------------
+
+-- 3) flujos   
+
 CREATE TABLE flujos (
   id                SERIAL PRIMARY KEY,
   organizacion_id   INTEGER NOT NULL REFERENCES organizaciones(id) ON DELETE CASCADE,
@@ -76,11 +58,9 @@ CREATE TABLE flujos (
 CREATE INDEX idx_flujos_organizacion ON flujos(organizacion_id);
 CREATE INDEX idx_flujos_propietario ON flujos(propietario_id);
 
--- ---------------------------------------------------------------------
--- 4) nodos_flujo   (== "Nodos_Flujo" del diagrama)
--- ---------------------------------------------------------------------
--- "nodo_key" es el id LOCAL que usa React Flow dentro de ese diagrama
--- ("1","2","manual-172..."), distinto del id numérico interno de la BD.
+
+-- 4) nodos_flujo   
+.
 CREATE TABLE nodos_flujo (
   id          SERIAL PRIMARY KEY,
   flujo_id    INTEGER NOT NULL REFERENCES flujos(id) ON DELETE CASCADE,
@@ -95,13 +75,9 @@ CREATE TABLE nodos_flujo (
 
 CREATE INDEX idx_nodos_flujo_flujo ON nodos_flujo(flujo_id);
 
--- ---------------------------------------------------------------------
--- 5) conexiones_flujo   (== "Conexiones_Flujo" del diagrama)
--- ---------------------------------------------------------------------
--- origen_handle/destino_handle: de qué lado del nodo sale/entra la flecha
--- en el lienzo (top/bottom/left/right) — tal como lo dibujaste en el
--- diagrama. Son opcionales: React Flow los pone solo cuando el usuario
--- conecta nodos a mano con handles específicos.
+
+-- 5) conexiones_flujo   
+
 CREATE TABLE conexiones_flujo (
   id                SERIAL PRIMARY KEY,
   conexion_key      VARCHAR(50) NOT NULL,
@@ -118,12 +94,9 @@ CREATE INDEX idx_conexiones_flujo_flujo ON conexiones_flujo(flujo_id);
 CREATE INDEX idx_conexiones_flujo_origen ON conexiones_flujo(nodo_origen_id);
 CREATE INDEX idx_conexiones_flujo_destino ON conexiones_flujo(nodo_destino_id);
 
--- ---------------------------------------------------------------------
--- 6) ejecuciones_flujo   (== "Ejecuciones_Flujo" del diagrama)
--- ---------------------------------------------------------------------
--- Una "corrida" real de un flujo (alguien lo empieza a ejecutar en la
--- práctica, no solo lo diseña). Todavía no hay pantalla en el frontend
--- para esto — queda lista la tabla para cuando se implemente.
+
+-- 6) ejecuciones_flujo   
+
 CREATE TABLE ejecuciones_flujo (
   id             SERIAL PRIMARY KEY,
   flujo_id       INTEGER NOT NULL REFERENCES flujos(id) ON DELETE CASCADE,
@@ -137,11 +110,9 @@ CREATE TABLE ejecuciones_flujo (
 
 CREATE INDEX idx_ejecuciones_flujo_flujo ON ejecuciones_flujo(flujo_id);
 
--- ---------------------------------------------------------------------
--- 7) tareas   (== "Tareas" del diagrama)
--- ---------------------------------------------------------------------
--- Una tarea concreta asociada a un paso (nodo) de un flujo, asignada a
--- un usuario. Ej: "Revisar solicitud" asignada a Wilder, vence el 20/09.
+
+-- 7) tareas   
+
 CREATE TABLE tareas (
   id             SERIAL PRIMARY KEY,
   flujo_id       INTEGER NOT NULL REFERENCES flujos(id) ON DELETE CASCADE,
@@ -157,9 +128,9 @@ CREATE TABLE tareas (
 CREATE INDEX idx_tareas_flujo ON tareas(flujo_id);
 CREATE INDEX idx_tareas_asignado ON tareas(asignado_a);
 
--- ---------------------------------------------------------------------
--- 8) archivos_adjuntos   (== "Archivos_Adjuntos" del diagrama)
--- ---------------------------------------------------------------------
+
+-- 8) archivos_adjuntos   
+
 CREATE TABLE archivos_adjuntos (
   id               SERIAL PRIMARY KEY,
   flujo_id         INTEGER NOT NULL REFERENCES flujos(id) ON DELETE CASCADE,
@@ -173,9 +144,9 @@ CREATE TABLE archivos_adjuntos (
 CREATE INDEX idx_archivos_adjuntos_flujo ON archivos_adjuntos(flujo_id);
 CREATE INDEX idx_archivos_adjuntos_tarea ON archivos_adjuntos(tarea_id);
 
--- ---------------------------------------------------------------------
--- 9) cuellos_de_botella   (== "Cuellos_de_Botella" del diagrama)
--- ---------------------------------------------------------------------
+
+-- 9) cuellos_de_botella  
+
 CREATE TABLE cuellos_de_botella (
   id                      SERIAL PRIMARY KEY,
   flujo_id                INTEGER NOT NULL REFERENCES flujos(id) ON DELETE CASCADE,
@@ -188,12 +159,8 @@ CREATE TABLE cuellos_de_botella (
 
 CREATE INDEX idx_cuellos_flujo ON cuellos_de_botella(flujo_id);
 
--- ---------------------------------------------------------------------
--- 10) insights_ia   (== "Insights_IA" del diagrama — reportes guardados)
--- ---------------------------------------------------------------------
--- "reporte_texto" es TEXT (sin límite de longitud, el equivalente a un
--- CLOB): aquí se guarda el reporte COMPLETO generado por Gemini de forma
--- permanente, para no tener que volver a llamar a la IA para releerlo.
+
+-- 10) insights_ia  
 CREATE TABLE insights_ia (
   id                      SERIAL PRIMARY KEY,
   flujo_id                INTEGER REFERENCES flujos(id) ON DELETE SET NULL,
@@ -213,6 +180,8 @@ CREATE INDEX idx_insights_ia_flujo ON insights_ia(flujo_id);
 
 DROP TABLE IF EXISTS password_reset_tokens CASCADE;
 
+-- password_reset_tokens Tabla para almacenar tokens de restablecimiento de contraseña
+
 CREATE TABLE password_reset_tokens (
   id          SERIAL PRIMARY KEY,
   user_id     INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -224,9 +193,9 @@ CREATE TABLE password_reset_tokens (
 CREATE INDEX idx_password_reset_tokens_hash ON password_reset_tokens(token_hash);
 CREATE INDEX idx_password_reset_tokens_user ON password_reset_tokens(user_id);
 
--- ---------------------------------------------------------------------
+
 -- KPIs del Dashboard: se CALCULAN, no se guardan en una tabla estática
--- ---------------------------------------------------------------------
+
 CREATE VIEW org_kpis AS
 SELECT
   o.id AS organizacion_id,
@@ -244,9 +213,9 @@ FROM organizaciones o
 LEFT JOIN flujos f ON f.organizacion_id = o.id
 GROUP BY o.id;
 
--- ---------------------------------------------------------------------
--- Trigger genérico: mantiene "actualizado_en" al día en cada UPDATE
--- ---------------------------------------------------------------------
+
+-- Trigger: mantiene "actualizado_en" al día en cada UPDATE
+
 CREATE OR REPLACE FUNCTION set_actualizado_en()
 RETURNS TRIGGER AS $$
 BEGIN
